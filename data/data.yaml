@@ -1,0 +1,27 @@
+# ============================================================
+# data/data.yaml
+# Final unified dataset configuration for YOLOv8 training.
+# This file is the single source of truth for class names.
+# Generated after Phase 3 (dataset merge).
+# ============================================================
+
+# Paths are relative to this file's location.
+# If you move this file, update accordingly.
+path: ../data          # Root dataset directory (relative to this yaml)
+train: train/images
+val: valid/images
+test: test/images
+
+# Number of classes
+nc: 8
+
+# Class names — ORDER MATTERS (must match label IDs in .txt files)
+names:
+  0: lying
+  1: standing
+  2: walking
+  3: sitting
+  4: feeding
+  5: drinking
+  6: social_interaction
+  7: aggression

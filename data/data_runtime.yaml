@@ -1,0 +1,14 @@
+names:
+  0: lying
+  1: standing
+  2: walking
+  3: sitting
+  4: feeding
+  5: drinking
+  6: social_interaction
+  7: aggression
+nc: 8
+path: C:\Users\Byron Dumaya\Downloads\Pig_Tracking\data
+test: test/images
+train: train/images
+val: valid/images

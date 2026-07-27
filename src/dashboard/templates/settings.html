@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings | Swine Health Monitor</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
+        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
+        .header h1 { margin: 0; color: #4CAF50; }
+        .nav-links a { color: #fff; text-decoration: none; padding: 8px 16px; background-color: #333; border-radius: 4px; }
+        
+        .settings-container { max-width: 600px; margin: 0 auto; background-color: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; }
+        
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #aaa; }
+        .form-group input[type="text"], .form-group input[type="number"] { 
+            width: 100%; padding: 10px; background-color: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;
+        }
+        .help-text { font-size: 0.85rem; color: #888; margin-top: 5px; }
+
+        .btn { background-color: #4CAF50; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; width: 100%; font-weight: bold; }
+        .btn:hover { background-color: #45a049; }
+
+        #status-msg { display: none; padding: 10px; margin-top: 15px; border-radius: 4px; text-align: center; }
+        .success { background-color: #1b5e20; color: #a5d6a7; }
+        .error { background-color: #b71c1c; color: #ffcdd2; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>⚙️ System Settings</h1>
+        <div class="nav-links">
+            <a href="/">← Back to Dashboard</a>
+        </div>
+    </div>
+
+    <div class="settings-container">
+        <form id="settings-form">
+            
+            <h3 style="color: #4CAF50; border-bottom: 1px solid #333; padding-bottom: 5px;">GSM SMS Alerts</h3>
+            
+            <div class="form-group">
+                <label>Recipient Phone Numbers</label>
+                <!-- Convert Python list to comma separated string -->
+                <input type="text" id="phone_numbers" value="{{ config.gsm.phone_numbers | join(', ') if config.gsm.phone_numbers else '' }}" placeholder="+63XXXXXXXXXX, +63YYYYYYYYYY">
+                <div class="help-text">Comma-separated list of numbers with country code.</div>
+            </div>
+
+            <div class="form-group">
+                <label>Alert Cooldown (Minutes)</label>
+                <input type="number" id="cooldown" value="{{ config.gsm.cooldown_minutes }}" min="1" max="120">
+                <div class="help-text">Minimum gap between sending repeated SMS alerts.</div>
+            </div>
+
+            <h3 style="color: #4CAF50; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 30px;">Hybrid Risk Engine</h3>
+            
+            <div class="form-group">
+                <label>Individual: Stationary Alert Timer (Minutes)</label>
+                <input type="number" id="stat_alert" value="{{ config.health.stationary_alert_minutes }}" min="5" max="60">
+                <div class="help-text">Time a pig must be continuously lying/sitting to trigger an alert.</div>
+            </div>
+
+            <div class="form-group">
+                <label>Individual: Fever Delta Threshold (°C)</label>
+                <input type="number" step="0.1" id="fever_delta" value="{{ config.health.fever_delta_threshold_c }}">
+                <div class="help-text">Alert if pig thermal zone > (ambient + this value).</div>
+            </div>
+
+            <div class="form-group">
+                <label>Population: Lethargy Ratio (0.0 - 1.0)</label>
+                <input type="number" step="0.05" id="pop_ratio" value="{{ config.health.population_lethargy_ratio }}" min="0.1" max="1.0">
+                <div class="help-text">Fraction of herd that must be stationary to trigger a herd lethargy alert (e.g., 0.60 = 60%).</div>
+            </div>
+
+            <button type="submit" class="btn">Save & Apply Changes</button>
+            <div id="status-msg"></div>
+        </form>
+    </div>
+
+    <script>
+        document.getElementById('settings-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const statusMsg = document.getElementById('status-msg');
+            const btn = document.querySelector('.btn');
+            
+            // Parse comma-separated phone numbers into a list
+            let phonesRaw = document.getElementById('phone_numbers').value;
+            let phoneList = phonesRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
+
+            const payload = {
+                gsm: {
+                    phone_numbers: phoneList,
+                    cooldown_minutes: document.getElementById('cooldown').value
+                },
+                health: {
+                    stationary_alert_minutes: document.getElementById('stat_alert').value,
+                    fever_delta_threshold_c: document.getElementById('fever_delta').value,
+                    population_lethargy_ratio: document.getElementById('pop_ratio').value
+                }
+            };
+
+            btn.disabled = true;
+            btn.innerText = "Saving...";
+
+            fetch('/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(r => r.json())
+            .then(data => {
+                statusMsg.style.display = 'block';
+                if(data.status === 'success') {
+                    statusMsg.className = 'success';
+                    statusMsg.innerText = "✅ " + data.message;
+                } else {
+                    statusMsg.className = 'error';
+                    statusMsg.innerText = "❌ Error: " + data.message;
+                }
+                setTimeout(() => { statusMsg.style.display = 'none'; }, 3000);
+            })
+            .catch(err => {
+                statusMsg.style.display = 'block';
+                statusMsg.className = 'error';
+                statusMsg.innerText = "❌ Network Error";
+            })
+            .finally(() => {
+                btn.disabled = false;
+                btn.innerText = "Save & Apply Changes";
+            });
+        });
+    </script>
+</body>
+</html>

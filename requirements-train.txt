@@ -1,0 +1,35 @@
+# ============================================================
+# requirements-train.txt
+# PC Training Dependencies — NVIDIA RTX 4050 / CUDA 12.x
+# Install with: pip install -r requirements-train.txt
+# ============================================================
+
+# --- Core AI / Model Training ---
+ultralytics==8.3.40          # YOLOv8 training framework (includes PyTorch download prompt)
+torch                        # PyTorch — CUDA 12.1 wheel (match your CUDA version)
+torchvision                  # Required by Ultralytics
+# NOTE: If torch install fails, get the correct wheel from:
+# https://pytorch.org/get-started/locally/
+
+# --- Data Processing ---
+numpy==1.26.4                # Numerical arrays (pin below 2.0 for YOLOv8 compat)
+opencv-python==4.10.0.84     # Image read/write/draw
+Pillow==10.4.0               # PIL image handling
+PyYAML==6.0.2                # YAML config parsing
+scipy==1.13.1                # Scientific computing (used in label validation)
+
+# --- Augmentation ---
+albumentations==1.4.14       # Advanced data augmentation pipeline
+
+# --- Dataset Utilities ---
+tqdm==4.66.5                 # Progress bars
+matplotlib==3.9.2            # Plotting: confusion matrix, PR curves
+seaborn==0.13.2              # Statistical visualizations
+pandas==2.2.2                # DataFrames for dataset stats
+
+# --- Evaluation ---
+scikit-learn==1.5.1          # Precision/Recall metrics, classification report
+
+# --- Dev Tools (optional but recommended) ---
+ipython==8.26.0              # Interactive debugging
+jupyter==1.0.0               # Notebook support for EDA

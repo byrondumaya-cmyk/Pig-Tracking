@@ -1,0 +1,49 @@
+# ============================================================
+# config/class_map.yaml
+# Canonical class name mapping for both datasets.
+# Maps original class names from each dataset source
+# to the final standardized 8-class list.
+# ============================================================
+
+canonical_classes:
+  0: lying
+  1: standing
+  2: walking
+  3: sitting
+  4: feeding
+  5: drinking
+  6: social_interaction
+  7: aggression
+
+# ----- Dataset 1 Mapping (wlvku) ----------------------------
+dataset_1_map:
+  "lying":              0
+  "standing":           1
+  "walk":               2
+  "active":             2
+  "sitting":            3
+  "eat":                4
+  "drink":              5
+  "investigating":      6
+  "nose-to-nose":       6
+  "fight":              7
+
+# ----- Dataset 2 Mapping (8xbgn) ----------------------------
+# Note: "NF" means No Feeding/Drinking
+dataset_2_map:
+  "Lateral Lying":          0
+  "Sternal Lying NF":       0
+  "Standing NF":            1
+  "Sitting NF":             3
+  "Sitting Feeding":        4
+  "Standing Feeding":       4
+  "Sternal Lying Feeding":  4
+  "Sitting Drinking":       5
+  "Standing Drinking":      5
+  "Sternal Lying Drinking": 5
+
+# ----- Classes to DROP (do not include in final dataset) ----
+# Dropping objects (Feeder/Waterer) because we only want behaviors
+drop_classes:
+  - "Feeder"
+  - "Waterer"

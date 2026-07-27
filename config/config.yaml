@@ -1,0 +1,140 @@
+# ============================================================
+# config/config.yaml
+# Master runtime configuration for the Swine Health Monitor
+# Edit this file to tune behavior without touching source code.
+# ============================================================
+
+# ----- System -----------------------------------------------
+system:
+  name: "Swine Health Monitor"
+  version: "1.0.0"
+  log_level: "INFO"            # DEBUG | INFO | WARNING | ERROR
+
+# ----- Camera -----------------------------------------------
+camera:
+  device_index: 0              # USB camera index (0 = first USB cam)
+  width: 640                   # Capture width in pixels
+  height: 480                  # Capture height in pixels
+  fps: 30                      # Target capture FPS
+  flip_horizontal: false
+  flip_vertical: false
+
+# ----- AI Inference -----------------------------------------
+inference:
+  model_path: "models/best.onnx"
+  confidence_threshold: 0.45   # Min confidence to accept a detection
+  iou_threshold: 0.45          # NMS IoU threshold
+  input_size: 640              # Model input size (must match training imgsz)
+  # Performance: process every Nth frame (1 = every frame)
+  # Increase to 2 or 3 if FPS is too low on Pi
+  frame_skip: 1
+  # ONNX Runtime thread count — use 4 for RPi4 (4-core CPU)
+  intra_op_threads: 4
+  inter_op_threads: 1
+
+# ----- Class Names ------------------------------------------
+# Must match the order in data/data.yaml
+classes:
+  - lying              # 0
+  - standing           # 1
+  - walking            # 2
+  - sitting            # 3
+  - feeding            # 4
+  - drinking           # 5
+  - social_interaction # 6
+  - aggression         # 7
+
+# ----- Object Tracking (SORT) --------------------------------
+tracking:
+  max_age: 30          # Frames to keep a lost track alive
+  min_hits: 3          # Min detections before confirming a track
+  iou_threshold: 0.3   # IoU threshold for track-detection association
+
+# ----- Thermal Camera (AMG8833) -----------------------------
+thermal:
+  enabled: true
+  i2c_bus: 1           # RPi I2C bus number (always 1 on RPi4)
+  i2c_address: 0x69    # AMG8833 default address
+  refresh_hz: 10       # AMG8833 native refresh rate
+  # Temperature thresholds in Celsius
+  normal_range: [35.0, 39.5]
+  alert_temp_celsius: 40.0    # Trigger alert above this temperature
+  # Zone mapping: divides RGB frame into a grid matching AMG8833
+  zone_cols: 8         # AMG8833 horizontal pixels
+  zone_rows: 8         # AMG8833 vertical pixels
+
+# ----- DHT22 Ambient Sensor ---------------------------------
+dht22:
+  enabled: true
+  gpio_pin: 4               # BCM GPIO pin number
+  sample_rate_sec: 30       # Read sensor every 30 seconds
+
+# ----- GSM900A SMS Module -----------------------------------
+gsm:
+  enabled: true
+  serial_port: "/dev/serial0"
+  baud_rate: 9600
+  phone_numbers:            # List — supports multiple recipients
+    - "+63XXXXXXXXXX"       # CHANGE BEFORE DEPLOYMENT
+  cooldown_minutes: 5       # Min gap between repeated SMS alerts
+
+# ----- Health Risk Engine (Hybrid Mode) ---------------------
+health:
+  # --- Individual Anomaly Trigger (Channel 1 — SORT-based) ---
+  stationary_behaviors:
+    - "lying"
+    - "sitting"
+  stationary_alert_minutes: 15        # Alert if single pig stationary >= 15m
+  stationary_heat_stress_minutes: 30  # Extended to 30m when THI > 78
+  fever_delta_threshold_c: 2.0        # Alert if pig zone > ambient + 2.0°C
+
+  # --- Population Lethargy Alert (Channel 2 — Frame-based) ---
+  population_lethargy_ratio: 0.60     # Alert if >= 60% of pigs are stationary
+  population_persist_seconds: 3       # Ratio must hold for 3+ consecutive seconds
+
+  # --- THI Heat Stress Threshold ---
+  thi_heat_stress_threshold: 78       # THI > 78 → lenient mode (pigs naturally lethargic)
+
+  # --- Alert Cooldown ---
+  cooldown_minutes: 5                 # Min gap between repeated SMS alerts
+
+  # --- Snapshots ---
+  save_snapshot_on_alert: true
+  snapshot_dir: "data/snapshots"
+
+# ----- Database ---------------------------------------------
+database:
+  path: "data/swine_health.db"
+  # Write-Ahead Logging: allows concurrent reads during writes
+  wal_mode: true
+  # How often to commit buffered writes (in seconds)
+  flush_interval_seconds: 5
+
+# ----- Dashboard (Flask) ------------------------------------
+dashboard:
+  host: "0.0.0.0"      # Listen on all interfaces (LAN + AP)
+  port: 5000
+  debug: false         # NEVER true in production
+  # MJPEG stream quality (1–95, lower = faster on Pi)
+  stream_jpeg_quality: 70
+  # Chart history window shown on dashboard (in minutes)
+  chart_window_minutes: 30
+
+# ----- Networking -------------------------------------------
+network:
+  # mode: "lan" uses existing router
+  # mode: "ap"  makes Pi a WiFi access point
+  mode: "lan"          # "lan" | "ap"
+  ap:
+    ssid: "PigMonitor_AP"
+    password: "CHANGE_ME"   # Change before deployment! (DO NOT COMMIT REAL PASSWORD)
+    ip: "192.168.4.1"
+    subnet: "192.168.4.0/24"
+
+# ----- Alerts -----------------------------------------------
+alerts:
+  # Save an annotated snapshot image when an alert is raised
+  save_snapshot: true
+  snapshot_dir: "data/snapshots"
+  # Minimum seconds between repeated alerts for same pig
+  cooldown_seconds: 300

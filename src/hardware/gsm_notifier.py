@@ -1,0 +1,165 @@
+"""
+src/hardware/gsm_notifier.py
+GSM900A SMS Alert Dispatcher
+
+PURPOSE:
+    Sends offline SMS alerts via GSM900A module using AT commands over UART.
+    Implements 5-minute cooldown to prevent alert fatigue.
+    Supports multiple recipient phone numbers (editable from Dashboard Settings Panel).
+
+WIRING (Raspberry Pi 4B):
+    GSM900A TX  → RPi GPIO15 / RXD0 (Pin 10)
+    GSM900A RX  → RPi GPIO14 / TXD0 (Pin 8)
+    GSM900A GND → GND (Pin 14)
+    GSM900A VCC → External 5V / 2A supply (NOT from Pi 5V pin — GSM draws too much current)
+
+PREREQUISITES:
+    sudo raspi-config → Interface Options → Serial Port
+    → Enable serial hardware, disable login shell over serial
+
+VERIFY:
+    python3 -c "import serial; s=serial.Serial('/dev/serial0',9600,timeout=1); print(s.readline())"
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from datetime import datetime, timedelta
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+try:
+    import serial
+    _SERIAL_AVAILABLE = True
+except ImportError:
+    _SERIAL_AVAILABLE = False
+    logger.warning("pyserial not available — GSM will run in simulation mode.")
+
+
+class GSMNotifier:
+    """
+    Dispatches SMS alerts via GSM900A module.
+    Enforces a configurable cooldown between repeated alerts.
+    """
+
+    def __init__(
+        self,
+        port: str = "/dev/serial0",
+        baud_rate: int = 9600,
+        cooldown_minutes: int = 5,
+    ) -> None:
+        self._port = port
+        self._baud_rate = baud_rate
+        self._cooldown = timedelta(minutes=cooldown_minutes)
+        self._last_sent: dict[str, datetime] = {}   # alert_type → last sent time
+        self._serial: Optional[object] = None
+
+        if _SERIAL_AVAILABLE:
+            try:
+                self._serial = serial.Serial(port, baud_rate, timeout=3)
+                time.sleep(1.0)     # GSM module boot delay
+                self._init_module()
+                logger.info(f"GSM900A ready on {port}")
+            except Exception as e:
+                logger.error(f"GSM init failed: {e}. Running in simulation mode.")
+        else:
+            logger.info("GSM running in simulation mode.")
+
+    def _init_module(self) -> None:
+        """Configure GSM module to text mode."""
+        self._send_at("AT", expected="OK")
+        self._send_at("AT+CMGF=1", expected="OK")   # Set SMS text mode
+
+    def _send_at(self, command: str, expected: str = "OK", timeout: float = 5.0) -> bool:
+        """Send an AT command and check for expected response."""
+        if not self._serial:
+            return True
+        try:
+            self._serial.write((command + "\r\n").encode())
+            deadline = time.time() + timeout
+            response = ""
+            while time.time() < deadline:
+                if self._serial.in_waiting:
+                    response += self._serial.read(self._serial.in_waiting).decode(errors="ignore")
+                if expected in response:
+                    return True
+                time.sleep(0.1)
+            logger.warning(f"AT command '{command}' timed out. Response: {response!r}")
+            return False
+        except Exception as e:
+            logger.error(f"AT command error: {e}")
+            return False
+
+    def _is_cooled_down(self, alert_type: str) -> bool:
+        """Check if enough time has passed since the last alert of this type."""
+        last = self._last_sent.get(alert_type)
+        if last is None:
+            return True
+        return datetime.now() - last >= self._cooldown
+
+    def send_alert(
+        self,
+        phone_numbers: list[str],
+        alert_type: str,
+        message: str,
+        force: bool = False,
+    ) -> bool:
+        """
+        Send an SMS alert to all configured recipients.
+
+        Args:
+            phone_numbers: List of recipient numbers from config.
+            alert_type: Alert category key for cooldown tracking (e.g. 'individual', 'population').
+            message: SMS body text (keep under 160 chars for single SMS).
+            force: Bypass cooldown (use sparingly, e.g. manual test from dashboard).
+
+        Returns:
+            True if at least one SMS was sent successfully.
+        """
+        if not force and not self._is_cooled_down(alert_type):
+            remaining = self._cooldown - (datetime.now() - self._last_sent[alert_type])
+            logger.info(f"SMS cooldown active for '{alert_type}'. {remaining.seconds}s remaining.")
+            return False
+
+        success = False
+        for number in phone_numbers:
+            if self._send_sms(number, message):
+                success = True
+
+        if success:
+            self._last_sent[alert_type] = datetime.now()
+            logger.info(f"SMS alert sent [{alert_type}] to {len(phone_numbers)} recipient(s).")
+
+        return success
+
+    def _send_sms(self, number: str, message: str) -> bool:
+        """Send a single SMS to one recipient."""
+        if not self._serial:
+            # Simulation: log what would have been sent
+            logger.info(f"[SIM] SMS to {number}: {message}")
+            return True
+
+        try:
+            cmd = f'AT+CMGS="{number}"'
+            if not self._send_at(cmd, expected=">", timeout=10.0):
+                return False
+            # Send message body followed by Ctrl+Z (0x1A) to send
+            self._serial.write((message + chr(0x1A)).encode())
+            return self._send_at("", expected="+CMGS:", timeout=15.0)
+        except Exception as e:
+            logger.error(f"SMS send to {number} failed: {e}")
+            return False
+
+    def test_connection(self) -> bool:
+        """Test if the GSM module is responding. Used by the dashboard status check."""
+        return self._send_at("AT", expected="OK")
+
+    def close(self) -> None:
+        """Close the serial port."""
+        if self._serial:
+            try:
+                self._serial.close()
+            except Exception:
+                pass
