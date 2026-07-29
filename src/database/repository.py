@@ -134,8 +134,24 @@ class SwineRepository:
             ).fetchall()
             return [dict(r) for r in rows]
 
+    def mark_sms_sent(self, alert_id: int, recipients: Optional[list] = None) -> None:
+        """
+        Mark an alert as having had an SMS dispatched.
+        Sets sms_sent=1 and records recipient numbers.
+        Does NOT set resolved — that requires farmer confirmation via the dashboard.
+        """
+        recipients_json = json.dumps(recipients or [])
+        with _conn(self._path) as con:
+            con.execute(
+                "UPDATE pen_alerts SET sms_sent = 1, sms_recipients = ? WHERE id = ?",
+                (recipients_json, alert_id),
+            )
+
     def resolve_alert(self, alert_id: int) -> None:
-        """Mark an alert as resolved."""
+        """
+        Mark an alert as resolved (farmer has physically inspected the pen).
+        Called via dashboard UI — NOT automatically after SMS.
+        """
         with _conn(self._path) as con:
             con.execute(
                 "UPDATE pen_alerts SET resolved = 1 WHERE id = ?", (alert_id,)

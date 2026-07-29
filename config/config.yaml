@@ -131,10 +131,3 @@ network:
     ip: "192.168.4.1"
     subnet: "192.168.4.0/24"
 
-# ----- Alerts -----------------------------------------------
-alerts:
-  # Save an annotated snapshot image when an alert is raised
-  save_snapshot: true
-  snapshot_dir: "data/snapshots"
-  # Minimum seconds between repeated alerts for same pig
-  cooldown_seconds: 300

@@ -1,25 +1,24 @@
 """
 src/dashboard/stream.py
-MJPEG Camera Stream
+MJPEG Camera Stream + Shared State Buffers
 
 PURPOSE:
-    Provides a shared thread-safe frame buffer that the main inference loop
-    writes annotated frames into, and the Flask route reads from.
-    Serves an MJPEG stream endpoint for live browser viewing.
+    Provides thread-safe singletons that the main inference loop writes into,
+    and the Flask routes read from — without direct cross-thread object passing.
+
+    FrameBuffer   — Latest annotated RGB frame (for MJPEG stream)
+    ThermalBuffer — Latest AMG8833 8x8 temperature grid
+    BehaviorBuffer — Latest PopulationSnapshot behavior counts
 
 USAGE (in routes.py):
-    from src.dashboard.stream import FrameBuffer, generate_mjpeg
-
-    @app.route('/video_feed')
-    def video_feed():
-        return Response(generate_mjpeg(), mimetype='multipart/x-mixed-replace; boundary=frame')
+    from src.dashboard.stream import FrameBuffer, ThermalBuffer, BehaviorBuffer, generate_mjpeg
 """
 
 from __future__ import annotations
 
 import threading
 import time
-from typing import Generator, Optional
+from typing import Dict, Generator, Optional
 
 import cv2
 import numpy as np
@@ -80,6 +79,60 @@ def _annotate_frame(frame: np.ndarray, tracked_pigs: list, fps: float) -> np.nda
     cv2.putText(frame, f"FPS: {fps:.1f}", (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
     cv2.putText(frame, f"Pigs: {len(tracked_pigs)}", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
     return frame
+
+
+class ThermalBuffer:
+    """
+    Thread-safe singleton for sharing the latest AMG8833 thermal grid.
+    Written by the main inference loop; read by /api/thermal_feed.
+    """
+
+    _lock = threading.Lock()
+    _grid: Optional[list] = None          # 8x8 list of lists (serializable)
+    _enabled: bool = False                 # Set to True once thermal sensor is up
+
+    @classmethod
+    def update(cls, grid: np.ndarray) -> None:
+        """Write new thermal grid. Called from main inference loop."""
+        with cls._lock:
+            cls._grid = grid.tolist()  # Convert to plain list for JSON serialisation
+            cls._enabled = True
+
+    @classmethod
+    def read(cls) -> Optional[list]:
+        """Read the latest thermal grid (8x8 list). Returns None if not yet available."""
+        with cls._lock:
+            return cls._grid
+
+    @classmethod
+    def mark_unavailable(cls) -> None:
+        """Signal that the thermal sensor is not present or failed."""
+        with cls._lock:
+            cls._enabled = False
+
+
+class BehaviorBuffer:
+    """
+    Thread-safe singleton for sharing the latest PopulationSnapshot.
+    Written by the main inference loop; read by /api/behavior_counts.
+    """
+
+    _lock = threading.Lock()
+    _data: Dict[str, int] = {}   # behavior_name → count
+    _total: int = 0
+
+    @classmethod
+    def update(cls, behavior_counts: Dict[str, int], total: int) -> None:
+        """Write latest behavior distribution. Called from main inference loop."""
+        with cls._lock:
+            cls._data = dict(behavior_counts)
+            cls._total = total
+
+    @classmethod
+    def read(cls) -> dict:
+        """Return a copy of the latest behavior counts dict + total."""
+        with cls._lock:
+            return {**cls._data, "total": cls._total}
 
 
 def generate_mjpeg(quality: int = 70) -> Generator[bytes, None, None]:

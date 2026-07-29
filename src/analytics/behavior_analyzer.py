@@ -46,9 +46,9 @@ class TrackState:
             return 0.0
         return time.time() - self.stationary_start
 
-    @property
-    def is_stationary(self) -> bool:
-        return self.behavior in STATIONARY_BEHAVIORS
+    def is_stationary(self, stationary_behaviors: set) -> bool:
+        """Return True if this track's current behavior is in the configured stationary set."""
+        return self.behavior in stationary_behaviors
 
 
 @dataclass

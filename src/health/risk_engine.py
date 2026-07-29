@@ -67,9 +67,11 @@ class AlertEvent:
         barn = f"{self.ambient_temp_c:.1f}C/{self.ambient_rh:.0f}%"
         if self.alert_type == AlertType.INDIVIDUAL:
             mins = int((self.stationary_duration_sec or 0) / 60)
+            # Guard against None zone temp (e.g. thermal sensor unavailable)
+            zone_str = f"{self.pig_zone_temp_c:.1f}C" if self.pig_zone_temp_c is not None else "N/A"
             return (
                 f"SWINE ALERT: Sick pig in pen. "
-                f"Stationary {mins}m, Zone:{self.pig_zone_temp_c:.1f}C, "
+                f"Stationary {mins}m, Zone:{zone_str}, "
                 f"Barn:{barn}. Inspect now."
             )
         else:
@@ -95,6 +97,7 @@ class HerdRiskEngine:
         population_lethargy_ratio: float = 0.60,
         population_persist_seconds: int = 3,
         thi_heat_stress_threshold: float = 78.0,
+        cooldown_minutes: int = 5,
     ) -> None:
         self._stationary_behaviors = set(stationary_behaviors or {"lying", "sitting"})
         self._alert_minutes = stationary_alert_minutes
@@ -103,6 +106,9 @@ class HerdRiskEngine:
         self._pop_ratio = population_lethargy_ratio
         self._pop_persist = population_persist_seconds
         self._thi_threshold = thi_heat_stress_threshold
+        self._cooldown_sec = cooldown_minutes * 60.0
+        # Per-alert-type timestamp of last emitted alert, for engine-level deduplication
+        self._last_alert_time: dict[str, float] = {}
 
     def _get_stationary_threshold(self, ambient: Optional["AmbientReading"]) -> float:
         """Return the stationary threshold in seconds, adapted for THI."""
@@ -137,6 +143,11 @@ class HerdRiskEngine:
                 and track.stationary_duration_sec >= threshold_sec
                 and track.thermal_zone_temp > (ambient_temp + self._fever_delta)
             ):
+                # Engine-level cooldown: suppress repeat alert within cooldown window
+                last_t = self._last_alert_time.get(AlertType.INDIVIDUAL.value, 0.0)
+                if time.time() - last_t < self._cooldown_sec:
+                    break  # Cooldown active — skip this cycle
+                self._last_alert_time[AlertType.INDIVIDUAL.value] = time.time()
                 alerts.append(AlertEvent(
                     alert_type=AlertType.INDIVIDUAL,
                     trigger_reason="stationary_fever",
@@ -161,20 +172,24 @@ class HerdRiskEngine:
             and persistent_lethargy_ratio >= self._pop_ratio
             and population_snapshot.total_detected >= 2  # Need at least 2 pigs to calc ratio
         ):
-            alerts.append(AlertEvent(
-                alert_type=AlertType.POPULATION,
-                trigger_reason="herd_lethargy",
-                ambient_temp_c=ambient_temp,
-                ambient_rh=ambient_rh,
-                ambient_thi=ambient_thi,
-                pig_zone_temp_c=None,
-                stationary_duration_sec=None,
-                stationary_count=population_snapshot.stationary_count,
-                total_pig_count=population_snapshot.total_detected,
-            ))
-            logger.warning(
-                f"[Channel 2] {population_snapshot.stationary_count}/"
-                f"{population_snapshot.total_detected} pigs stationary. ALERT."
-            )
+            # Engine-level cooldown for population alerts
+            last_t = self._last_alert_time.get(AlertType.POPULATION.value, 0.0)
+            if time.time() - last_t >= self._cooldown_sec:
+                self._last_alert_time[AlertType.POPULATION.value] = time.time()
+                alerts.append(AlertEvent(
+                    alert_type=AlertType.POPULATION,
+                    trigger_reason="herd_lethargy",
+                    ambient_temp_c=ambient_temp,
+                    ambient_rh=ambient_rh,
+                    ambient_thi=ambient_thi,
+                    pig_zone_temp_c=None,
+                    stationary_duration_sec=None,
+                    stationary_count=population_snapshot.stationary_count,
+                    total_pig_count=population_snapshot.total_detected,
+                ))
+                logger.warning(
+                    f"[Channel 2] {population_snapshot.stationary_count}/"
+                    f"{population_snapshot.total_detected} pigs stationary. ALERT."
+                )
 
         return alerts

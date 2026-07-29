@@ -45,7 +45,7 @@ class AMG8833Reader:
     ROWS = 8
     COLS = 8
 
-    def __init__(self, i2c_address: int = 0x69, refresh_hz: int = 10) -> None:
+    def __init__(self, i2c_address: int = 0x69, refresh_hz: int = 10, i2c_bus: int = 1) -> None:
         self._sensor = None
         self._refresh_interval = 1.0 / refresh_hz
         self._last_read = 0.0
@@ -53,10 +53,15 @@ class AMG8833Reader:
 
         if _AMG_AVAILABLE:
             try:
+                # Use busio with explicit SCL/SDA — i2c_bus is bus 1 on all RPi4 boards.
+                # Stored for documentation; busio on RPi always uses the hardware I2C pins.
+                self._i2c_bus = i2c_bus
                 i2c = busio.I2C(board.SCL, board.SDA)
                 self._sensor = adafruit_amg88xx.AMG88XX(i2c, addr=i2c_address)
                 time.sleep(0.5)  # Sensor startup time
-                logger.info(f"AMG8833 initialized at I2C address 0x{i2c_address:02X}")
+                logger.info(
+                    f"AMG8833 initialized at I2C bus {i2c_bus}, address 0x{i2c_address:02X}"
+                )
             except Exception as e:
                 logger.error(f"AMG8833 init failed: {e}. Running in simulation mode.")
         else:

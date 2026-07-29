@@ -110,6 +110,7 @@ class SwineHealthMonitor:
                 self.thermal_reader = AMG8833Reader(
                     i2c_address=self.cfg.thermal.i2c_address,
                     refresh_hz=self.cfg.thermal.refresh_hz,
+                    i2c_bus=self.cfg.thermal.i2c_bus,
                 )
                 self.thermal_mapper = assign_temperatures
                 logger.info("AMG8833 thermal camera initialized.")
@@ -146,6 +147,7 @@ class SwineHealthMonitor:
             population_lethargy_ratio=h.population_lethargy_ratio,
             population_persist_seconds=h.population_persist_seconds,
             thi_heat_stress_threshold=h.thi_heat_stress_threshold,
+            cooldown_minutes=h.cooldown_minutes,
         )
         logger.info("Hybrid risk engine ready.")
 
@@ -217,6 +219,9 @@ class SwineHealthMonitor:
                 temperature_map = self.thermal_mapper(
                     thermal_grid, tracked_pigs, frame.shape
                 )
+                # Push latest thermal grid to dashboard buffer
+                from src.dashboard.stream import ThermalBuffer
+                ThermalBuffer.update(thermal_grid)
 
             # --- Behavior analyzer: build detection dicts ---
             detection_dicts = [
@@ -231,6 +236,13 @@ class SwineHealthMonitor:
             active_tracks, population_snapshot = self.behavior_analyzer.update(detection_dicts)
             persistent_ratio = self.behavior_analyzer.get_persistent_lethargy_ratio(
                 self.cfg.health.population_persist_seconds
+            )
+
+            # Push latest behavior counts to dashboard buffer
+            from src.dashboard.stream import BehaviorBuffer
+            BehaviorBuffer.update(
+                population_snapshot.behavior_counts,
+                population_snapshot.total_detected,
             )
 
             # --- Hybrid Risk Evaluation ---
@@ -268,7 +280,11 @@ class SwineHealthMonitor:
                         message=alert.sms_message(),
                     )
                     if sent:
-                        self.repository.resolve_alert(alert_id)  # Mark notified
+                        # Mark SMS dispatched — does NOT resolve the alert.
+                        # Farmer must confirm inspection via dashboard.
+                        self.repository.mark_sms_sent(
+                            alert_id, self.cfg.gsm.phone_numbers
+                        )
 
             # --- Update shared frame buffer for dashboard stream ---
             from src.dashboard.stream import FrameBuffer

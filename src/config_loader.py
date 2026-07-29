@@ -8,10 +8,10 @@ and catches typos at import time rather than at runtime.
 
 from __future__ import annotations
 
-import os
+import typing
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
+from typing import Optional, get_type_hints
 
 import yaml
 
@@ -125,13 +125,6 @@ class NetworkConfig:
 
 
 @dataclass
-class AlertsConfig:
-    save_snapshot: bool = True
-    snapshot_dir: str = "data/snapshots"
-    cooldown_seconds: int = 300
-
-
-@dataclass
 class AppConfig:
     """Root configuration object — access all settings from here."""
     camera: CameraConfig = field(default_factory=CameraConfig)
@@ -144,27 +137,41 @@ class AppConfig:
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     network: NetworkConfig = field(default_factory=NetworkConfig)
-    alerts: AlertsConfig = field(default_factory=AlertsConfig)
     classes: list = field(default_factory=list)
 
 
 # ── Loader ──────────────────────────────────────────────────────────────
 
 def _dict_to_dataclass(cls, data: dict):
-    """Recursively hydrate a dataclass from a dict, ignoring unknown keys."""
+    """
+    Recursively hydrate a dataclass from a dict, ignoring unknown keys.
+
+    Uses typing.get_type_hints() to resolve string annotations introduced by
+    `from __future__ import annotations` (PEP 563) back to actual class objects
+    so that nested dataclasses are correctly detected and hydrated.
+    """
     if not isinstance(data, dict):
         return data
 
-    init_fields = {f.name for f in cls.__dataclass_fields__.values()}
+    # Resolve forward references / PEP 563 string annotations to real types
+    try:
+        type_hints = get_type_hints(cls)
+    except Exception:
+        type_hints = {f.name: f.type for f in cls.__dataclass_fields__.values()}
+
     kwargs = {}
     for f in cls.__dataclass_fields__.values():
         if f.name not in data:
             continue
         val = data[f.name]
-        field_type = f.type
+        resolved_type = type_hints.get(f.name)
         # Recurse into nested dataclasses
-        if hasattr(field_type, "__dataclass_fields__") and isinstance(val, dict):
-            kwargs[f.name] = _dict_to_dataclass(field_type, val)
+        if (
+            resolved_type is not None
+            and hasattr(resolved_type, "__dataclass_fields__")
+            and isinstance(val, dict)
+        ):
+            kwargs[f.name] = _dict_to_dataclass(resolved_type, val)
         else:
             kwargs[f.name] = val
     return cls(**kwargs)
@@ -202,7 +209,6 @@ def load_config(path: Optional[Path] = None) -> AppConfig:
         "thermal": ThermalConfig,
         "database": DatabaseConfig,
         "dashboard": DashboardConfig,
-        "alerts": AlertsConfig,
     }
     for key, cls in simple_sections.items():
         if key in raw:
@@ -230,5 +236,5 @@ def load_config(path: Optional[Path] = None) -> AppConfig:
     return cfg
 
 
-# ── Module-level singleton (import once, use everywhere) ─────────────────
+# ── Module-level singleton (import once, use everywhere) ────────────────────
 config: AppConfig = load_config()

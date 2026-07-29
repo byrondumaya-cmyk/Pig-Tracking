@@ -24,7 +24,7 @@ adafruit-blinka==8.45.0                 # CircuitPython compatibility layer
 RPi.GPIO==0.7.1                         # GPIO access
 
 # --- Ambient Sensor (DHT22) ---
-adafruit-circuitpython-dht              # DHT22 temp+humidity driver (Bookworm compatible)
+adafruit-circuitpython-dht==3.7.9          # DHT22 temp+humidity driver (Bookworm compatible)
 
 # --- GSM900A SMS Module ---
 pyserial==3.5                           # Serial communication via UART
