@@ -40,14 +40,17 @@ PROJECT_USER="${SUDO_USER:-pi}"
 info "Service will run as user: $PROJECT_USER"
 
 # ── Prerequisite checks ───────────────────────────────────────────────────────
-VENV_PYTHON="$PROJECT_ROOT/.venv/bin/python3"
-if [[ ! -f "$VENV_PYTHON" ]]; then
-    warn "Virtual environment not found at $VENV_PYTHON"
-    warn "Create it first:  python3 -m venv $PROJECT_ROOT/.venv"
-    warn "                  $PROJECT_ROOT/.venv/bin/pip install -r $PROJECT_ROOT/requirements-pi.txt"
+if [[ -f "$PROJECT_ROOT/venv/bin/python3" ]]; then
+    VENV_PYTHON="$PROJECT_ROOT/venv/bin/python3"
+elif [[ -f "$PROJECT_ROOT/.venv/bin/python3" ]]; then
+    VENV_PYTHON="$PROJECT_ROOT/.venv/bin/python3"
+else
+    warn "Virtual environment not found at $PROJECT_ROOT/venv or $PROJECT_ROOT/.venv"
+    warn "Create it first:  python3 -m venv $PROJECT_ROOT/venv"
+    warn "                  $PROJECT_ROOT/venv/bin/pip install -r $PROJECT_ROOT/requirements-pi.txt"
     error "Aborting — venv required before installing service."
 fi
-info "Virtual environment: OK"
+info "Virtual environment: OK ($VENV_PYTHON)"
 
 MODEL_PATH="$PROJECT_ROOT/models/best.onnx"
 if [[ ! -f "$MODEL_PATH" ]]; then
