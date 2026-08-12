@@ -595,27 +595,6 @@ def sync_system_time():
         repo.log_time_sync(source_type, old_time, "", "failed", None, str(e))
         return jsonify({"status": "error", "message": f"Time sync error: {str(e)}"}), 400
 
-            ratio = validated_data["population_lethargy_ratio"]
-            if not (0 < ratio <= 1):
-                return jsonify({"status": "error", "message": "population_lethargy_ratio must be between 0 and 1"}), 400
-        if "thi_heat_stress_threshold" in validated_data and validated_data["thi_heat_stress_threshold"] < 0:
-            return jsonify({"status": "error", "message": "thi_heat_stress_threshold must be >= 0"}), 400
-        if "cooldown_minutes" in validated_data and validated_data["cooldown_minutes"] <= 0:
-            return jsonify({"status": "error", "message": "cooldown_minutes must be > 0"}), 400
-        
-        # Save to database
-        repo.set_herd_risk_engine_config(validated_data)
-        
-        return jsonify({
-            "status": "success",
-            "message": "Alert configuration updated",
-            "config": repo.get_herd_risk_engine_config()
-        })
-    except (ValueError, TypeError) as e:
-        return jsonify({"status": "error", "message": f"Invalid value: {str(e)}"}), 400
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
-
 
 @dashboard_bp.route('/api/alert_config/defaults', methods=['GET'])
 def get_alert_config_defaults():
