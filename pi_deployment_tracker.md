@@ -1,4 +1,4 @@
-# Raspberry Pi Deployment Tracker
+3# Raspberry Pi Deployment Tracker
 *Swine Health Monitoring System*
 
 This tracker is designed for you to follow along as we move from the PC development environment to the physical Raspberry Pi hardware.

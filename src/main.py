@@ -34,6 +34,31 @@ from src.config_loader import AppConfig, load_config
 logger = logging.getLogger(__name__)
 
 
+def apply_network_settings(cfg: AppConfig) -> None:
+    """Apply and validate network-related runtime settings."""
+    if cfg.network.mode == "ap":
+        if cfg.dashboard.host != "0.0.0.0":
+            logger.warning(
+                "AP mode requires dashboard host 0.0.0.0; overriding %s.",
+                cfg.dashboard.host,
+            )
+            cfg.dashboard.host = "0.0.0.0"
+        logger.info(
+            "AP mode enabled. Use SSID '%s' and connect to %s on port %d.",
+            cfg.network.ap.ssid,
+            cfg.network.ap.ip,
+            cfg.dashboard.port,
+        )
+        if cfg.network.ap.password in ("CHANGE_ME", "", None):
+            logger.warning(
+                "AP password is still default. Update config/config.yaml before deployment."
+            )
+    else:
+        logger.info(
+            "LAN mode enabled. Dashboard will be available on existing network interfaces."
+        )
+
+
 class SwineHealthMonitor:
     """
     Top-level system orchestrator.
@@ -60,6 +85,7 @@ class SwineHealthMonitor:
     def setup(self) -> None:
         """Initialize all subsystems. Fails fast if critical components missing."""
         logger.info("Initializing subsystems...")
+        apply_network_settings(self.cfg)
 
         from src.inference.detector import PigDetector
         from src.tracking.pig_tracker import PigTracker
