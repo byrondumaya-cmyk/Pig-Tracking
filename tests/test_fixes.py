@@ -196,6 +196,27 @@ def test_resolve_alert_sets_resolved(tmp_path):
     assert resolved == 1
 
 
+def test_detector_raises_when_input_size_mismatches_model():
+    """PigDetector should validate config input_size against the ONNX model."""
+    from src.config_loader import load_config
+    from src.inference.detector import PigDetector
+
+    cfg = load_config()
+    wrong_size = cfg.inference.input_size + 1
+    try:
+        PigDetector(
+            model_path=cfg.inference.model_path,
+            input_size=wrong_size,
+            confidence_threshold=cfg.inference.confidence_threshold,
+            iou_threshold=cfg.inference.iou_threshold,
+            intra_op_threads=cfg.inference.intra_op_threads,
+            inter_op_threads=cfg.inference.inter_op_threads,
+        )
+        assert False, "PigDetector instantiated with wrong input_size and should have raised ValueError"
+    except ValueError as exc:
+        assert "input_size" in str(exc)
+
+
 # ── Test 5: config_loader loads without crashing ─────────────────────────────
 
 def test_config_loads_successfully():

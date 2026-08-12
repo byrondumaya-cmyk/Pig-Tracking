@@ -24,10 +24,10 @@ inference:
   model_path: "models/best.onnx"
   confidence_threshold: 0.45   # Min confidence to accept a detection
   iou_threshold: 0.45          # NMS IoU threshold
-  input_size: 320              # Model input size (must match training imgsz)
+  input_size: 640              # Model input size (must match exported ONNX model)
   # Performance: process every Nth frame (1 = every frame)
   # Increase to 2 or 3 if FPS is too low on Pi
-  frame_skip: 2
+  frame_skip: 3
   # ONNX Runtime thread count — use 4 for RPi4 (4-core CPU)
   intra_op_threads: 4
   inter_op_threads: 1

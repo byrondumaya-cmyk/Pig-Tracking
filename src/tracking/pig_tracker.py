@@ -65,14 +65,11 @@ class PigTracker:
         Returns:
             List of TrackedPig objects with stable track IDs.
         """
-        if not detections:
-            self._sort.update(np.empty((0, 5)))
-            return []
-
         # Build (N,5) array for SORT: [x1,y1,x2,y2,confidence]
-        det_array = np.array([
-            [*d["bbox"], d["confidence"]] for d in detections
-        ], dtype=float)
+        det_array = np.array(
+            [[*d["bbox"], d["confidence"]] for d in detections],
+            dtype=float,
+        ) if detections else np.empty((0, 5), dtype=float)
 
         sort_output = self._sort.update(det_array)  # → [x1,y1,x2,y2,track_id]
 
@@ -90,7 +87,7 @@ class PigTracker:
                 conf = d["confidence"]
                 self._detection_cache[track_id] = (behavior, conf)
             else:
-                # Coasted track — use cached behavior
+                # Coasted track — use cached behavior from last matched detection.
                 behavior, conf = self._detection_cache.get(track_id, ("unknown", 0.0))
 
             tracked.append(TrackedPig(

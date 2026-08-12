@@ -86,7 +86,8 @@
         </div>
         <div class="stat-card">
             <div>Behaviors</div>
-            <div class="stat-value" id="behavior-val" style="font-size: 1.1rem; color: #e0e0e0;">Lying: 0 | Walking: 0</div>
+            <div class="stat-value" id="behavior-val" style="font-size: 1rem; color: #e0e0e0;">Lying: 0 | Standing: 0 | Walking: 0 | Sitting: 0 | Total: 0</div>
+            <div style="font-size: 0.82rem; margin-top: 8px; color: #bbb;">Counts are for the current frame. Track IDs are temporary and may change if a pig leaves and returns.</div>
         </div>
         <div class="stat-card">
             <div>GSM Status</div>
@@ -160,7 +161,7 @@
                 .then(r => r.json())
                 .then(data => {
                     document.getElementById('behavior-val').innerText = 
-                        `Lying: ${data.lying || 0} | Walking: ${data.walking || 0}`;
+                        `Lying: ${data.lying || 0} | Standing: ${data.standing || 0} | Walking: ${data.walking || 0} | Sitting: ${data.sitting || 0} | Total: ${data.total || 0}`;
                 }).catch(() => {});
         }
 

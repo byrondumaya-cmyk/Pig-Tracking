@@ -165,6 +165,7 @@ class SwineHealthMonitor:
         self.behavior_analyzer = BehaviorAnalyzer(
             stationary_behaviors=h.stationary_behaviors,
         )
+        self.pig_counter = None  # Will initialize in run()
         self.risk_engine = HerdRiskEngine(
             stationary_behaviors=h.stationary_behaviors,
             stationary_alert_minutes=h.stationary_alert_minutes,
@@ -185,17 +186,26 @@ class SwineHealthMonitor:
         self._running = True
         self._start_dashboard()
 
-        cap = cv2.VideoCapture(self.cfg.camera.device_index)
-        cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.cfg.camera.width)
-        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.cfg.camera.height)
-        cap.set(cv2.CAP_PROP_FPS, self.cfg.camera.fps)
+        from src.hardware.async_camera import AsyncCamera
+        from src.analytics.pig_counter import PigCounter
 
-        if not cap.isOpened():
-            logger.error("Cannot open camera at index %d.", self.cfg.camera.device_index)
+        # Initialize async camera for non-blocking frame capture
+        camera = AsyncCamera(
+            device_index=self.cfg.camera.device_index,
+            width=self.cfg.camera.width,
+            height=self.cfg.camera.height,
+            fps=self.cfg.camera.fps,
+        )
+
+        if not camera.start():
+            logger.error("Cannot start camera. Shutting down.")
             self.shutdown()
             return
 
-        logger.info("Camera open. Target %d FPS. Ctrl+C to stop.", self.cfg.camera.fps)
+        # Initialize pig counter for occupancy tracking
+        self.pig_counter = PigCounter()
+
+        logger.info("Camera started (async mode). Target %d FPS. Ctrl+C to stop.", self.cfg.camera.fps)
 
         frame_count = 0
         fps_timer = time.time()
@@ -204,10 +214,11 @@ class SwineHealthMonitor:
         dht_last_read = 0.0
 
         while self._running:
-            ret, frame = cap.read()
-            if not ret:
-                logger.warning("Frame capture failed. Retrying...")
-                time.sleep(0.1)
+            # Non-blocking camera read (async)
+            frame = camera.read()
+            if frame is None:
+                # Camera not ready yet, wait briefly
+                time.sleep(0.01)
                 continue
 
             frame_count += 1
@@ -222,6 +233,12 @@ class SwineHealthMonitor:
             if frame_count % self.cfg.inference.frame_skip != 0:
                 continue
 
+            # Apply optional camera mirroring
+            if self.cfg.camera.flip_horizontal:
+                frame = cv2.flip(frame, 1)
+            if self.cfg.camera.flip_vertical:
+                frame = cv2.flip(frame, 0)
+
             # --- DHT22: read ambient periodically ---
             now = time.time()
             if self.dht_sensor and (now - dht_last_read) >= self.cfg.dht22.sample_rate_sec:
@@ -233,10 +250,25 @@ class SwineHealthMonitor:
                     )
 
             # --- Detection ---
+            t0 = time.perf_counter()
             detections = self.detector.detect(frame)
+            detect_time = time.perf_counter() - t0
 
             # --- Tracking ---
+            t0 = time.perf_counter()
             tracked_pigs = self.tracker.update(detections, self.cfg.classes)
+            track_time = time.perf_counter() - t0
+
+            # --- Pig Counting: Update occupancy count (current pigs in view) ---
+            current_pig_count = self.pig_counter.update(tracked_pigs)
+            logger.debug(
+                "Frame %d: detections=%d track count=%d detect=%.3fs track=%.3fs",
+                frame_count,
+                len(detections),
+                current_pig_count,
+                detect_time,
+                track_time,
+            )
 
             # --- Thermal mapping ---
             temperature_map: dict[int, float] = {}
@@ -316,8 +348,8 @@ class SwineHealthMonitor:
             from src.dashboard.stream import FrameBuffer
             FrameBuffer.update(frame, tracked_pigs, fps_display)
 
-        cap.release()
-        logger.info("Camera released.")
+        camera.stop()
+        logger.info("Async camera stopped. Capture stats: %s", camera.get_stats())
 
     def _start_dashboard(self) -> None:
         """Start Flask dashboard in a daemon thread."""
@@ -360,16 +392,20 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
 
-    log_level = logging.DEBUG if args.debug else logging.INFO
+    cfg = load_config(Path(args.config) if args.config else None)
+    if args.no_thermal:
+        cfg.thermal.enabled = False
+
+    log_level = logging.DEBUG if args.debug else getattr(
+        logging,
+        cfg.system.log_level.upper(),
+        logging.INFO,
+    )
     logging.basicConfig(
         level=log_level,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-
-    cfg = load_config(Path(args.config) if args.config else None)
-    if args.no_thermal:
-        cfg.thermal.enabled = False
 
     monitor = SwineHealthMonitor(cfg)
 

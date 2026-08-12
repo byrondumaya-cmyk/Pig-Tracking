@@ -111,6 +111,13 @@ class DashboardConfig:
 
 
 @dataclass
+class SystemConfig:
+    name: str = "Swine Health Monitor"
+    version: str = "1.0.0"
+    log_level: str = "INFO"
+
+
+@dataclass
 class APConfig:
     ssid: str = "PigMonitor_AP"
     password: str = "CHANGE_ME"     # Must be set in config.yaml before deployment
@@ -127,6 +134,7 @@ class NetworkConfig:
 @dataclass
 class AppConfig:
     """Root configuration object — access all settings from here."""
+    system: SystemConfig = field(default_factory=SystemConfig)
     camera: CameraConfig = field(default_factory=CameraConfig)
     inference: InferenceConfig = field(default_factory=InferenceConfig)
     tracking: TrackingConfig = field(default_factory=TrackingConfig)
@@ -203,6 +211,7 @@ def load_config(path: Optional[Path] = None) -> AppConfig:
     # Hydrate each section if present
     # Sections with direct dataclass mapping
     simple_sections = {
+        "system": SystemConfig,
         "camera": CameraConfig,
         "inference": InferenceConfig,
         "tracking": TrackingConfig,

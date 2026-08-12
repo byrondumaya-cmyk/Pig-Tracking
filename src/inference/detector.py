@@ -18,6 +18,7 @@ VERIFY:
 from __future__ import annotations
 
 import logging
+import time
 from pathlib import Path
 from typing import List
 
@@ -48,11 +49,14 @@ class PigDetector:
         input_size: int = 640,
         intra_op_threads: int = 4,
         inter_op_threads: int = 1,
+        enable_profiling: bool = False,
     ) -> None:
         self._conf_thresh = confidence_threshold
         self._iou_thresh = iou_threshold
         self._input_size = input_size
         self._session = None
+        self._enable_profiling = enable_profiling
+        self._timing_stats = {"preprocess": [], "inference": [], "postprocess": []}
 
         if not _ORT_AVAILABLE:
             logger.error("ONNX Runtime unavailable. Detector will return empty results.")
@@ -69,7 +73,38 @@ class PigDetector:
 
         self._session = ort.InferenceSession(str(model_path), sess_options=opts)
         self._input_name = self._session.get_inputs()[0].name
-        logger.info(f"ONNX model loaded from {model_path}")
+
+        # Validate that the model input size aligns with the configured input_size.
+        input_shape = self._session.get_inputs()[0].shape
+        if len(input_shape) != 4 or input_shape[1] != 3:
+            raise ValueError(
+                f"Unsupported ONNX input shape {input_shape}. Expected [1,3,H,W]."
+            )
+        if input_shape[2] != input_shape[3]:
+            raise ValueError(
+                f"ONNX model input must be square, got {input_shape[2]}x{input_shape[3]}"
+            )
+        model_size = int(input_shape[2])
+        if self._input_size != model_size:
+            raise ValueError(
+                f"Configured input_size={self._input_size} does not match ONNX model size={model_size}."
+            )
+
+        logger.info(f"ONNX model loaded from {model_path} with input size {model_size}.")
+
+    def get_timing_stats(self) -> dict:
+        """Return timing statistics if profiling was enabled."""
+        import numpy as np
+        stats = {}
+        for key, times in self._timing_stats.items():
+            if times:
+                stats[key] = {
+                    "mean_ms": np.mean(times) * 1000,
+                    "min_ms": np.min(times) * 1000,
+                    "max_ms": np.max(times) * 1000,
+                    "count": len(times),
+                }
+        return stats
 
     def detect(self, frame: np.ndarray) -> List[dict]:
         """
@@ -81,9 +116,23 @@ class PigDetector:
         if self._session is None:
             return []
 
+        if self._enable_profiling:
+            t0 = time.perf_counter()
         img, scale, pad = self._preprocess(frame)
+        if self._enable_profiling:
+            self._timing_stats["preprocess"].append(time.perf_counter() - t0)
+            t0 = time.perf_counter()
+
         outputs = self._session.run(None, {self._input_name: img})
-        return self._postprocess(outputs[0], scale, pad, frame.shape)
+        if self._enable_profiling:
+            self._timing_stats["inference"].append(time.perf_counter() - t0)
+            t0 = time.perf_counter()
+
+        results = self._postprocess(outputs[0], scale, pad, frame.shape)
+        if self._enable_profiling:
+            self._timing_stats["postprocess"].append(time.perf_counter() - t0)
+
+        return results
 
     def _preprocess(self, frame: np.ndarray) -> tuple:
         """Letterbox resize + normalize to [0,1] + NCHW format."""

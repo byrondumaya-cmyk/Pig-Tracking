@@ -172,6 +172,10 @@ sudo systemctl restart hostapd
 sudo systemctl restart dnsmasq
 ```
 
+> Note: On a Raspberry Pi with a single wireless radio, `wlan0` normally cannot act as both a Wi-Fi client and a hotspot at the same time. Switching `wlan0` into AP mode will drop any existing Wi-Fi client connection. If you need remote access while the Pi is in AP mode, use Ethernet or a second USB Wi-Fi adapter.
+>
+> The automatic app service is separate from AP mode. Create and enable the service after your network mode is configured and working. It does not need to be done before configuring `hostapd`/`dnsmasq`.
+
 ## 9. Run the Pig Tracking app
 
 With the virtual environment active:
@@ -187,6 +191,28 @@ If you want to disable the thermal sensor while testing, use:
 ```bash
 python3 src/main.py --no-thermal
 ```
+
+### 9.1 Runtime logs and tracking semantics
+
+- The app stores runtime data in `data/swine_health.db`.
+- The SQLite database contains:
+  - `detections` — every tracked detection, including `track_id`, `behavior`, `confidence`, and bounding box coordinates.
+  - `pen_alerts` — alert events, trigger reason, ambient/thermal context, and resolution state.
+- These are the primary runtime logs for behavior analytics and alert history.
+- The app does not create a separate file-based log by default; runtime messages are written to stdout/stderr.
+  - If you run the app directly, monitor the terminal output.
+  - If you run it as a service, follow the service logs with:
+
+```bash
+sudo journalctl -u pig_tracking.service -f
+```
+- For more verbose diagnostics, start the app with debug logging:
+
+```bash
+python3 src/main.py --debug
+```
+
+> Note: Track IDs shown in the dashboard (for example `#5 lying`) are temporary SORT tracker IDs for the current session only. If a pig leaves the camera frame and later re-enters, it may receive a new track ID. This is expected behavior for this tracker design and does not necessarily mean the system has detected a different animal.
 
 ## 10. Access the dashboard
 
@@ -208,9 +234,84 @@ From any device connected to the network, open the dashboard and confirm:
 - The Pi runtime uses ONNX Runtime and will not use `best.pt` for live inference.
 - The trained ONNX file is excluded from Git in this repository, so a fresh clone may not include it. Copy `models/best.onnx` manually if it is not present.
 
-## 13. Optional: Automatic service start
+## 13. Performance tuning
 
-Later, you can create a systemd service to launch the app automatically at boot.
+The Pi can improve frame throughput by reducing image size and processing fewer frames. Do not disable thermal or DHT sensors unless you are explicitly testing a sensor-free mode; keep them enabled for the full system functionality.
+
+### Recommended tuning presets
+
+1. Balanced throughput
+
+```yaml
+camera:
+  width: 320
+  height: 240
+  fps: 30
+
+inference:
+  input_size: 320
+  frame_skip: 2
+```
+
+- Best for stable live video on Raspberry Pi 4.
+- Keeps the thermal and ambient sensors active.
+- Processes every other frame to reduce CPU load.
+
+2. Performance-first
+
+```yaml
+camera:
+  width: 320
+  height: 240
+  fps: 30
+
+inference:
+  input_size: 256
+  frame_skip: 3
+```
+
+- Lower resolution and smaller model input for maximum speed.
+- Use this when the app struggles to keep up with real-time inference.
+
+3. Quality-first
+
+```yaml
+camera:
+  width: 640
+  height: 480
+  fps: 20
+
+inference:
+  input_size: 640
+  frame_skip: 1
+```
+
+- Higher image quality and more accurate detections.
+- Use this when you have enough CPU headroom and want the best visual output.
+
+### How to apply tuning
+
+1. Edit `config/config.yaml`.
+2. Update the `camera` and `inference` sections with one of the presets above.
+3. Restart the app:
+
+```bash
+cd ~/Pig_Tracking
+source venv/bin/activate
+python3 src/main.py
+```
+
+### What affects FPS most
+
+- Camera resolution and model input size are the biggest factors.
+- `frame_skip` reduces how often the app performs inference.
+- The app’s actual dashboard update rate depends on the full inference loop, not only the camera FPS.
+
+## 14. Optional: Automatic service start
+
+Later, you can create a systemd service to launch the app automatically at boot. This service is independent of AP mode and should be enabled after the Pi network mode is configured.
+
+Create `/etc/systemd/system/pig_tracking.service` with:
 
 ```ini
 [Unit]
@@ -228,7 +329,7 @@ Restart=on-failure
 WantedBy=multi-user.target
 ```
 
-Save it as `/etc/systemd/system/pig_tracking.service`, then enable it:
+Then enable and start it:
 
 ```bash
 sudo systemctl daemon-reload
@@ -241,3 +342,5 @@ If you want to follow live startup logs:
 ```bash
 sudo journalctl -u pig_tracking.service -f
 ```
+
+If you later switch the Pi back to normal Wi-Fi client mode from AP mode, the service can remain enabled. It will start the app after boot once the network is configured.
