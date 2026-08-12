@@ -26,6 +26,9 @@
         .stat-value { font-size: 1.5rem; font-weight: bold; color: #4CAF50; margin-top: 5px; }
         .stat-card.danger .stat-value { color: #f44336; }
 
+        .thermal-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 0.95rem; color: #ddd; }
+        .thermal-meta div { flex: 1; text-align: center; padding: 8px 0; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid #2a2a2a; }
+
         .alert-log { background-color: #1e1e1e; padding: 15px; border-radius: 8px; border: 1px solid #333; max-height: 300px; overflow-y: auto; }
         .log-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #333; }
         .log-icon { font-size: 1.2rem; margin-right: 15px; }
@@ -63,6 +66,11 @@
             <h2>Thermal Heatmap (AMG8833)</h2>
             <div class="video-container">
                 <canvas id="thermal-canvas" width="8" height="8"></canvas>
+            </div>
+            <div class="thermal-meta">
+                <div>Max: <span id="thermal-max">--°C</span></div>
+                <div>Avg: <span id="thermal-avg">--°C</span></div>
+                <div>Min: <span id="thermal-min">--°C</span></div>
             </div>
         </div>
     </div>
@@ -116,6 +124,9 @@
                         // Sensor offline or not yet available
                         ctx.fillStyle = '#222';
                         ctx.fillRect(0, 0, 8, 8);
+                        document.getElementById('thermal-max').innerText = '--°C';
+                        document.getElementById('thermal-avg').innerText = '--°C';
+                        document.getElementById('thermal-min').innerText = '--°C';
                         return;
                     }
                     for(let i=0; i<8; i++) {
@@ -124,6 +135,9 @@
                             ctx.fillRect(j, i, 1, 1);
                         }
                     }
+                    document.getElementById('thermal-max').innerText = `${data.max_temp_c?.toFixed(1) ?? '--'}°C`;
+                    document.getElementById('thermal-avg').innerText = `${data.avg_temp_c?.toFixed(1) ?? '--'}°C`;
+                    document.getElementById('thermal-min').innerText = `${data.min_temp_c?.toFixed(1) ?? '--'}°C`;
                 }).catch(() => {});
         }
 

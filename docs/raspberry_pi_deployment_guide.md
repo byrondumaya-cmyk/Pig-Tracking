@@ -103,7 +103,7 @@ network:
   mode: "ap"
   ap:
     ssid: "PigMonitor_AP"
-    password: "YOUR_SECURE_PASSWORD"
+    password: "pigmonitor123"
     ip: "192.168.4.1"
     subnet: "192.168.4.0/24"
 ```
@@ -140,7 +140,7 @@ macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
 wpa=2
-wpa_passphrase=YOUR_SECURE_PASSWORD
+wpa_passphrase=pigmonitor123
 wpa_key_mgmt=WPA-PSK
 wpa_pairwise=TKIP
 rsn_pairwise=CCMP
@@ -232,6 +232,12 @@ Save it as `/etc/systemd/system/pig_tracking.service`, then enable it:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable pig_tracking.service
-sudo systemctl start pig_tracking.service
+sudo systemctl enable --now pig_tracking.service
+sudo systemctl status pig_tracking.service
+```
+
+If you want to follow live startup logs:
+
+```bash
+sudo journalctl -u pig_tracking.service -f
 ```

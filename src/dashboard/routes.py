@@ -83,7 +83,19 @@ def thermal_feed():
     if grid is None:
         # Sensor not yet available or disabled — return null so UI can show offline state
         return jsonify({"grid": None, "status": "unavailable"})
-    return jsonify({"grid": grid, "status": "ok"})
+
+    flattened = [temp for row in grid for temp in row]
+    min_temp = min(flattened) if flattened else None
+    max_temp = max(flattened) if flattened else None
+    avg_temp = sum(flattened) / len(flattened) if flattened else None
+
+    return jsonify({
+        "grid": grid,
+        "status": "ok",
+        "min_temp_c": min_temp,
+        "max_temp_c": max_temp,
+        "avg_temp_c": avg_temp,
+    })
 
 
 @dashboard_bp.route('/api/ambient')
