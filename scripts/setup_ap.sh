@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # =============================================================================
 # scripts/setup_ap.sh
-# Idempotent Access Point (AP) mode setup for Raspberry Pi 4B
+# Idempotent Access Point (AP) mode setup for Raspberry Pi (Bullseye & Bookworm)
 #
 # Run ONCE on the Raspberry Pi when deploying in field/AP mode.
 # Safe to re-run — backs up existing configs before overwriting.
@@ -36,7 +36,7 @@ CONFIG_FILE="$PROJECT_ROOT/config/config.yaml"
 
 [[ -f "$CONFIG_FILE" ]] || error "config.yaml not found at $CONFIG_FILE"
 
-# ── Parse SSID + password from config.yaml (simple grep/sed — no python needed)
+# ── Parse SSID + password from config.yaml ────────────────────────────────────
 AP_SSID=$(grep -A5 'ap:' "$CONFIG_FILE" | grep 'ssid:' | head -1 | sed "s/.*ssid: *['\"]*//" | sed "s/['\"].*//")
 AP_PASS=$(grep -A5 'ap:' "$CONFIG_FILE" | grep 'password:' | head -1 | sed "s/.*password: *['\"]*//" | sed "s/['\"].*//")
 AP_IP=$(grep -A5 'ap:' "$CONFIG_FILE" | grep 'ip:' | head -1 | sed "s/.*ip: *['\"]*//" | sed "s/['\"].*//")
@@ -68,23 +68,68 @@ read -rp "Apply these settings? (y/N): " CONFIRM
 section "Backing up existing network configs"
 BACKUP_DIR="/etc/pig_monitor_backup/$(date +%Y%m%d_%H%M%S)"
 mkdir -p "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR" # Security: Protect backed-up passwords
 for f in /etc/dhcpcd.conf /etc/hostapd/hostapd.conf /etc/dnsmasq.conf /etc/default/hostapd; do
     [[ -f "$f" ]] && cp "$f" "$BACKUP_DIR/" && info "Backed up $f"
 done
 info "Backups saved to $BACKUP_DIR"
 
-# ── Install hostapd + dnsmasq ─────────────────────────────────────────────────
-section "Installing hostapd and dnsmasq"
-apt-get update -qq
-apt-get install -y hostapd dnsmasq
-systemctl stop hostapd dnsmasq 2>/dev/null || true
+# ── Unblock WiFi ──────────────────────────────────────────────────────────────
+# Ensure rfkill isn't soft-blocking the WiFi radio
+if command -v rfkill &> /dev/null; then
+    rfkill unblock wifi
+    info "WiFi radio unblocked via rfkill"
+fi
 
-# ── Configure static IP for wlan0 (via dhcpcd) ───────────────────────────────
-section "Configuring static IP on wlan0"
-DHCPCD_CONF="/etc/dhcpcd.conf"
-# Remove any existing pig_monitor block
-sed -i '/# BEGIN pig_monitor_ap/,/# END pig_monitor_ap/d' "$DHCPCD_CONF"
-cat >> "$DHCPCD_CONF" <<EOF
+# ── Detect Network Manager (Bookworm vs Bullseye) ─────────────────────────────
+if command -v nmcli &> /dev/null && systemctl is-active --quiet NetworkManager; then
+    # =========================================================================
+    # MODERN PATH: Raspberry Pi OS Bookworm (NetworkManager)
+    # =========================================================================
+    section "Applying NetworkManager AP Configuration (Bookworm)"
+    
+    # 1. Clean up old connections named PigMonitor_AP
+    if nmcli con show "PigMonitor_AP" &> /dev/null; then
+        nmcli con delete "PigMonitor_AP"
+        info "Removed old NetworkManager AP profile."
+    fi
+    
+    # 2. Stop hostapd/dnsmasq if they were accidentally installed and running
+    systemctl stop hostapd dnsmasq 2>/dev/null || true
+    systemctl disable hostapd dnsmasq 2>/dev/null || true
+
+    # 3. Create the Hotspot
+    info "Creating NetworkManager Hotspot connection..."
+    nmcli con add type wifi ifname wlan0 mode ap con-name PigMonitor_AP ssid "$AP_SSID" ipv4.method shared ipv4.addresses "$AP_IP/24"
+    nmcli con modify PigMonitor_AP wifi-sec.key-mgmt wpa-psk wifi-sec.psk "$AP_PASS"
+    
+    # Optional: ensure NM automatically starts it on boot
+    nmcli con modify PigMonitor_AP connection.autoconnect yes
+
+    # Security: Ensure NM connection files are restricted
+    chmod 600 /etc/NetworkManager/system-connections/PigMonitor_AP.nmconnection 2>/dev/null || true
+    
+    info "Activating Hotspot..."
+    nmcli con up PigMonitor_AP
+
+    info "NetworkManager AP configured successfully."
+
+else
+    # =========================================================================
+    # LEGACY PATH: Raspberry Pi OS Bullseye (dhcpcd + hostapd + dnsmasq)
+    # =========================================================================
+    section "Applying Legacy AP Configuration (Bullseye)"
+    
+    info "Installing hostapd and dnsmasq..."
+    apt-get update -qq
+    apt-get install -y hostapd dnsmasq
+    systemctl stop hostapd dnsmasq 2>/dev/null || true
+
+    # ── Configure static IP for wlan0 (via dhcpcd) ───────────────────────────
+    DHCPCD_CONF="/etc/dhcpcd.conf"
+    if [[ -f "$DHCPCD_CONF" ]]; then
+        sed -i '/# BEGIN pig_monitor_ap/,/# END pig_monitor_ap/d' "$DHCPCD_CONF"
+        cat >> "$DHCPCD_CONF" <<EOF
 
 # BEGIN pig_monitor_ap — managed by scripts/setup_ap.sh
 interface wlan0
@@ -92,12 +137,12 @@ interface wlan0
     nohook wpa_supplicant
 # END pig_monitor_ap
 EOF
-info "dhcpcd.conf updated with static $AP_IP on wlan0"
+        info "dhcpcd.conf updated with static $AP_IP on wlan0"
+    fi
 
-# ── Configure hostapd ─────────────────────────────────────────────────────────
-section "Writing hostapd configuration"
-mkdir -p /etc/hostapd
-cat > /etc/hostapd/hostapd.conf <<EOF
+    # ── Configure hostapd ────────────────────────────────────────────────────
+    mkdir -p /etc/hostapd
+    cat > /etc/hostapd/hostapd.conf <<EOF
 # Managed by scripts/setup_ap.sh — Swine Health Monitor AP
 interface=wlan0
 driver=nl80211
@@ -115,46 +160,56 @@ wpa_key_mgmt=WPA-PSK
 wpa_pairwise=TKIP
 rsn_pairwise=CCMP
 EOF
+    chmod 600 /etc/hostapd/hostapd.conf # Security
 
-# Point /etc/default/hostapd to the config
-sed -i 's|#DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
-info "hostapd configured for SSID: $AP_SSID"
+    sed -i 's|#DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
+    
+    # Fix Race Condition: Ensure hostapd waits for network online target
+    mkdir -p /etc/systemd/system/hostapd.service.d
+    cat > /etc/systemd/system/hostapd.service.d/override.conf <<EOF
+[Unit]
+After=network-online.target
+Wants=network-online.target
 
-# ── Configure dnsmasq (DHCP server) ──────────────────────────────────────────
-section "Writing dnsmasq configuration"
-# Preserve existing dnsmasq.conf if it has other entries
-DNSMASQ_CONF="/etc/dnsmasq.conf"
-sed -i '/# BEGIN pig_monitor_ap/,/# END pig_monitor_ap/d' "$DNSMASQ_CONF"
-cat >> "$DNSMASQ_CONF" <<EOF
+[Service]
+Restart=on-failure
+RestartSec=5
+EOF
+    systemctl daemon-reload
+
+    info "hostapd configured for SSID: $AP_SSID"
+
+    # ── Configure dnsmasq (DHCP server) ──────────────────────────────────────
+    DNSMASQ_CONF="/etc/dnsmasq.conf"
+    sed -i '/# BEGIN pig_monitor_ap/,/# END pig_monitor_ap/d' "$DNSMASQ_CONF"
+    cat >> "$DNSMASQ_CONF" <<EOF
 
 # BEGIN pig_monitor_ap — managed by scripts/setup_ap.sh
 interface=wlan0
 dhcp-range=${DHCP_START},${DHCP_END},255.255.255.0,24h
-# Captive portal redirect: send all DNS to the dashboard IP
 address=/#/${AP_IP}
 # END pig_monitor_ap
 EOF
-info "dnsmasq configured: DHCP $DHCP_START–$DHCP_END, all DNS → $AP_IP"
+    info "dnsmasq configured."
+
+    # ── Enable services ──────────────────────────────────────────────────────
+    systemctl unmask hostapd
+    systemctl enable hostapd dnsmasq
+    info "Legacy services enabled."
+fi
 
 # ── Update config.yaml to use ap mode ────────────────────────────────────────
 section "Updating config.yaml network mode to 'ap'"
 sed -i "s/^  mode: .*/  mode: \"ap\"/" "$CONFIG_FILE"
 info "config.yaml → network.mode = ap"
 
-# ── Enable services ───────────────────────────────────────────────────────────
-section "Enabling services"
-systemctl unmask hostapd
-systemctl enable hostapd dnsmasq
-info "hostapd and dnsmasq enabled."
-
 section "Summary"
 echo ""
-echo -e "  ${GREEN}✓${NC} Static IP   : wlan0 = $AP_IP"
+echo -e "  ${GREEN}✓${NC} AP Mode Configuration Applied"
 echo -e "  ${GREEN}✓${NC} SSID        : $AP_SSID"
-echo -e "  ${GREEN}✓${NC} DHCP range  : $DHCP_START – $DHCP_END"
 echo -e "  ${GREEN}✓${NC} Dashboard   : http://$AP_IP:5000 (after reboot)"
 echo ""
-warn "A REBOOT IS REQUIRED for changes to take effect."
+warn "A REBOOT IS REQUIRED for changes to take effect reliably."
 read -rp "Reboot now? (y/N): " REBOOT
 if [[ "$REBOOT" =~ ^[Yy]$ ]]; then
     info "Rebooting in 3 seconds..."
