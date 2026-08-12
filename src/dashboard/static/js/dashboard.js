@@ -223,12 +223,46 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ── AP Connection Info ───────────────────────────────────────────────────
+    async function fetchApInfo() {
+        try {
+            const data = await apiFetch('/api/ap-info');
+            if (!data || !data.ap_active) return; // LAN mode — keep card hidden
+
+            const card = document.getElementById('ap-info-card');
+            if (card) card.style.display = '';
+
+            const ssidEl = document.getElementById('ap-ssid');
+            const passEl = document.getElementById('ap-password');
+            const urlEl  = document.getElementById('ap-url');
+            const canvas = document.getElementById('ap-qr-canvas');
+
+            if (ssidEl) ssidEl.textContent = data.ssid || '--';
+            if (passEl) passEl.textContent = data.password || '--';
+            if (urlEl)  urlEl.textContent  = data.dashboard_url || '--';
+
+            // Render QR code onto canvas (qrcode.js must be loaded)
+            if (canvas && data.wifi_qr && typeof QRCode !== 'undefined') {
+                QRCode.toCanvas(canvas, data.wifi_qr, {
+                    width: 180,
+                    margin: 1,
+                    color: { dark: '#000000', light: '#ffffff' }
+                }, (err) => {
+                    if (err) console.warn('QR generation failed:', err);
+                });
+            }
+        } catch (e) {
+            // AP info is non-critical — fail silently
+        }
+    }
+
     // ── Start Polling ───────────────────────────────────────────────────────
     // Initial fetch
     fetchThermal();
     fetchAmbient();
     fetchBehaviors();
     fetchAlerts();
+    fetchApInfo(); // One-time: AP config doesn't change at runtime
 
     // Start intervals
     setInterval(fetchThermal, 200);   // Fast refresh for thermal mapping
@@ -236,3 +270,4 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(fetchAmbient, 5000);  // 5s for ambient (sensor is slow anyway)
     setInterval(fetchAlerts, 5000);   // 5s for alerts
 });
+

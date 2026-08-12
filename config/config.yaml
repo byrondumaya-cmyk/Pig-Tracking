@@ -98,13 +98,6 @@ health:
   # --- Alert Cooldown ---
   cooldown_minutes: 5                 # Min gap between repeated SMS alerts
 
-# ----- Network / AP Mode ------------------------------------
-network:
-  ap:
-    ssid: "PigMonitor_AP"
-    password: "pigtracking123"
-    ip: "192.168.4.1"
-
   # --- Snapshots ---
   save_snapshot_on_alert: true
   snapshot_dir: "data/snapshots"
@@ -131,10 +124,9 @@ dashboard:
 network:
   # mode: "lan" uses existing router
   # mode: "ap"  makes Pi a WiFi access point
-  mode: "lan"          # "lan" | "ap"
+  mode: "ap"           # "lan" | "ap"
   ap:
     ssid: "PigMonitor_AP"
-    password: "CHANGE_ME"   # Change before deployment! (DO NOT COMMIT REAL PASSWORD)
+    password: "pigtracking123"
     ip: "192.168.4.1"
     subnet: "192.168.4.0/24"
-

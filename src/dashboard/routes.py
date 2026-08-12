@@ -628,3 +628,34 @@ def get_alert_config_defaults():
         "defaults": defaults,
         "descriptions": descriptions
     })
+
+
+# --- AP Connection Info ─────────────────────────────────────────────────────
+
+@dashboard_bp.route('/api/ap-info')
+def ap_info():
+    """Return the live AP configuration for the dashboard connection panel.
+
+    Exposes SSID, password (in AP mode only), IP, and a WPA QR string
+    so the frontend can render a scannable Wi-Fi QR code.
+    """
+    cfg = current_app.config.get("SHM_CONFIG")
+    if not cfg or cfg.network.mode != "ap":
+        return jsonify({"ap_active": False})
+
+    ssid = cfg.network.ap.ssid
+    password = cfg.network.ap.password
+    ip = cfg.network.ap.ip
+
+    # WPA QR string — standard format used by iOS/Android camera apps
+    wifi_qr = f"WIFI:T:WPA;S:{ssid};P:{password};;"
+
+    return jsonify({
+        "ap_active": True,
+        "ssid": ssid,
+        "password": password,
+        "ip": ip,
+        "wifi_qr": wifi_qr,
+        "dashboard_url": f"http://{ip}:5000"
+    })
+

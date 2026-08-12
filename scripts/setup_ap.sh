@@ -210,10 +210,25 @@ section "Updating config.yaml network mode to 'ap'"
 sed -i "s/^  mode: .*/  mode: \"ap\"/" "$CONFIG_FILE"
 info "config.yaml → network.mode = ap"
 
+# ── Post-setup password verification (NetworkManager path only) ───────────────
+if command -v nmcli &> /dev/null && nmcli con show "PigMonitor_AP" &> /dev/null; then
+    section "Password Verification"
+    NM_PSK=$(nmcli -s -g 802-11-wireless-security.psk con show PigMonitor_AP 2>/dev/null || echo "")
+    if [[ "$NM_PSK" == "$AP_PASS" ]]; then
+        info "✓ Password verified: NetworkManager and config.yaml agree."
+    else
+        warn "Password MISMATCH detected!"
+        warn "  config.yaml password : $AP_PASS"
+        warn "  NetworkManager PSK   : $NM_PSK"
+        warn "Use the NetworkManager password to connect your phone."
+    fi
+fi
+
 section "Summary"
 echo ""
 echo -e "  ${GREEN}✓${NC} AP Mode Configuration Applied"
 echo -e "  ${GREEN}✓${NC} SSID        : $AP_SSID"
+echo -e "  ${GREEN}✓${NC} Password    : $AP_PASS"
 echo -e "  ${GREEN}✓${NC} Dashboard   : http://$AP_IP:5000 (after reboot)"
 echo ""
 warn "A REBOOT IS REQUIRED for changes to take effect reliably."
