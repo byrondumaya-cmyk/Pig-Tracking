@@ -42,6 +42,10 @@ class GSMNotifier:
     """
     Dispatches SMS alerts via GSM900A module.
     Enforces a configurable cooldown between repeated alerts.
+    
+    Can receive phone numbers either:
+    1. From config.gsm.phone_numbers (legacy, for backward compatibility)
+    2. Dynamically from database via repository (new, preferred)
     """
 
     def __init__(
@@ -49,12 +53,14 @@ class GSMNotifier:
         port: str = "/dev/serial0",
         baud_rate: int = 9600,
         cooldown_minutes: int = 5,
+        repository = None,  # Optional: SwineRepository for dynamic recipient lookup
     ) -> None:
         self._port = port
         self._baud_rate = baud_rate
         self._cooldown = timedelta(minutes=cooldown_minutes)
         self._last_sent: dict[str, datetime] = {}   # alert_type → last sent time
         self._serial: Optional[object] = None
+        self._repository = repository  # For dynamic recipient lookup
 
         if _SERIAL_AVAILABLE:
             try:
@@ -101,16 +107,16 @@ class GSMNotifier:
 
     def send_alert(
         self,
-        phone_numbers: list[str],
-        alert_type: str,
-        message: str,
+        phone_numbers: list[str] | None = None,
+        alert_type: str = "alert",
+        message: str = "",
         force: bool = False,
     ) -> bool:
         """
-        Send an SMS alert to all configured recipients.
+        Send an SMS alert to configured recipients.
 
         Args:
-            phone_numbers: List of recipient numbers from config.
+            phone_numbers: Optional list of recipient numbers. If not provided, uses repository.
             alert_type: Alert category key for cooldown tracking (e.g. 'individual', 'population').
             message: SMS body text (keep under 160 chars for single SMS).
             force: Bypass cooldown (use sparingly, e.g. manual test from dashboard).
@@ -118,6 +124,17 @@ class GSMNotifier:
         Returns:
             True if at least one SMS was sent successfully.
         """
+        # Determine recipients: explicit list, repository, or fallback to empty
+        if phone_numbers is None:
+            if self._repository:
+                phone_numbers = self._repository.get_enabled_recipients()
+            else:
+                phone_numbers = []
+        
+        if not phone_numbers:
+            logger.warning("No recipients configured for SMS alert.")
+            return False
+
         if not force and not self._is_cooled_down(alert_type):
             remaining = self._cooldown - (datetime.now() - self._last_sent[alert_type])
             logger.info(f"SMS cooldown active for '{alert_type}'. {remaining.seconds}s remaining.")

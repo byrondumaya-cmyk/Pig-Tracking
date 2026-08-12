@@ -5,26 +5,258 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Settings | Swine Health Monitor</title>
     <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-        .header h1 { margin: 0; color: #4CAF50; }
-        .nav-links a { color: #fff; text-decoration: none; padding: 8px 16px; background-color: #333; border-radius: 4px; }
-        
-        .settings-container { max-width: 600px; margin: 0 auto; background-color: #1e1e1e; padding: 20px; border-radius: 8px; border: 1px solid #333; }
-        
-        .form-group { margin-bottom: 20px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; color: #aaa; }
-        .form-group input[type="text"], .form-group input[type="number"] { 
-            width: 100%; padding: 10px; background-color: #2a2a2a; border: 1px solid #444; color: #fff; border-radius: 4px; box-sizing: border-box;
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: #121212; 
+            color: #e0e0e0; 
+            margin: 0; 
+            padding: 20px; 
         }
-        .help-text { font-size: 0.85rem; color: #888; margin-top: 5px; }
+        .header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 1px solid #333; 
+            padding-bottom: 10px; 
+            margin-bottom: 20px; 
+        }
+        .header h1 { 
+            margin: 0; 
+            color: #4CAF50; 
+        }
+        .nav-links a { 
+            color: #fff; 
+            text-decoration: none; 
+            padding: 8px 16px; 
+            background-color: #333; 
+            border-radius: 4px; 
+        }
+        
+        .settings-container { 
+            max-width: 800px; 
+            margin: 0 auto; 
+            background-color: #1e1e1e; 
+            padding: 20px; 
+            border-radius: 8px; 
+            border: 1px solid #333; 
+        }
+        
+        .section {
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .section:last-child {
+            border-bottom: none;
+        }
+        
+        .section-title {
+            color: #4CAF50; 
+            font-size: 1.3rem;
+            font-weight: bold;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 8px;
+            margin-bottom: 15px;
+        }
+        
+        .form-group { 
+            margin-bottom: 15px; 
+        }
+        
+        .form-group label { 
+            display: block; 
+            margin-bottom: 5px; 
+            font-weight: bold; 
+            color: #aaa; 
+        }
+        
+        .form-group input[type="text"], 
+        .form-group input[type="number"],
+        .form-group input[type="checkbox"] { 
+            padding: 8px; 
+            background-color: #2a2a2a; 
+            border: 1px solid #444; 
+            color: #fff; 
+            border-radius: 4px; 
+        }
+        
+        .form-group input[type="text"],
+        .form-group input[type="number"] {
+            width: 100%;
+            box-sizing: border-box;
+        }
+        
+        .form-group input[type="checkbox"] {
+            width: auto;
+            cursor: pointer;
+            margin-right: 8px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .help-text { 
+            font-size: 0.85rem; 
+            color: #888; 
+            margin-top: 5px; 
+        }
+        
+        .info-box {
+            background-color: #1a3a3a;
+            border-left: 3px solid #00bcd4;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+        }
 
-        .btn { background-color: #4CAF50; color: white; padding: 12px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 1rem; width: 100%; font-weight: bold; }
-        .btn:hover { background-color: #45a049; }
+        .btn { 
+            background-color: #4CAF50; 
+            color: white; 
+            padding: 12px 20px; 
+            border: none; 
+            border-radius: 4px; 
+            cursor: pointer; 
+            font-size: 1rem; 
+            font-weight: bold;
+        }
+        
+        .btn:hover { 
+            background-color: #45a049; 
+        }
+        
+        .btn-secondary {
+            background-color: #2196F3;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #0b7dda;
+        }
+        
+        .btn-full {
+            width: 100%;
+        }
 
-        #status-msg { display: none; padding: 10px; margin-top: 15px; border-radius: 4px; text-align: center; }
-        .success { background-color: #1b5e20; color: #a5d6a7; }
-        .error { background-color: #b71c1c; color: #ffcdd2; }
+        #status-msg { 
+            display: none; 
+            padding: 12px; 
+            margin-top: 15px; 
+            border-radius: 4px; 
+            text-align: center; 
+            font-weight: bold;
+        }
+        
+        .success { 
+            background-color: #1b5e20; 
+            color: #a5d6a7; 
+            border: 1px solid #4CAF50;
+        }
+        
+        .error { 
+            background-color: #b71c1c; 
+            color: #ffcdd2;
+            border: 1px solid #f44336;
+        }
+        
+        .recipient-item {
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            padding: 10px; 
+            background-color: #2a2a2a;
+            margin-bottom: 8px;
+            border-radius: 4px;
+            border-left: 3px solid #4CAF50;
+        }
+        
+        .recipient-info {
+            flex: 1;
+        }
+        
+        .recipient-phone {
+            font-weight: bold;
+            font-size: 1rem;
+        }
+        
+        .recipient-status {
+            font-size: 0.85rem;
+            margin-top: 3px;
+        }
+        
+        .recipient-status.enabled {
+            color: #4CAF50;
+        }
+        
+        .recipient-status.disabled {
+            color: #f44336;
+        }
+        
+        .recipient-actions {
+            display: flex; 
+            gap: 8px;
+        }
+        
+        .btn-small {
+            padding: 5px 12px;
+            font-size: 0.85rem;
+            width: auto;
+        }
+        
+        .btn-toggle {
+            background-color: #ff9800;
+        }
+        
+        .btn-toggle:hover {
+            background-color: #e68900;
+        }
+        
+        .btn-remove {
+            background-color: #f44336;
+        }
+        
+        .btn-remove:hover {
+            background-color: #da190b;
+        }
+        
+        .recipients-empty {
+            text-align: center; 
+            color: #888; 
+            padding: 20px;
+            background-color: #2a2a2a;
+            border-radius: 4px;
+        }
+        
+        .add-recipient-row {
+            display: flex; 
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .add-recipient-row input {
+            flex: 1;
+        }
+        
+        .add-recipient-row button {
+            flex: 0 0 auto;
+            width: auto;
+        }
+        
+        .config-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        @media (max-width: 600px) {
+            .config-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
@@ -37,100 +269,319 @@
     </div>
 
     <div class="settings-container">
-        <form id="settings-form">
+        <div id="status-msg"></div>
+        
+        <!-- SECTION 1: GSM SMS Alert Recipients -->
+        <div class="section">
+            <div class="section-title">📱 GSM SMS Alert Recipients</div>
             
-            <h3 style="color: #4CAF50; border-bottom: 1px solid #333; padding-bottom: 5px;">GSM SMS Alerts</h3>
-            
-            <div class="form-group">
-                <label>Recipient Phone Numbers</label>
-                <!-- Convert Python list to comma separated string -->
-                <input type="text" id="phone_numbers" value="{{ config.gsm.phone_numbers | join(', ') if config.gsm.phone_numbers else '' }}" placeholder="+63XXXXXXXXXX, +63YYYYYYYYYY">
-                <div class="help-text">Comma-separated list of numbers with country code.</div>
+            <div class="info-box">
+                ℹ️ Manage who receives SMS alerts. Recipients can be enabled/disabled without removing them.
             </div>
-
+            
+            <div id="recipients-list" style="margin-bottom: 15px;">
+                <div class="recipients-empty">Loading recipients...</div>
+            </div>
+            
+            <div class="add-recipient-row">
+                <input type="text" id="new_phone" placeholder="+63XXXXXXXXXX" />
+                <button type="button" id="add-recipient-btn" class="btn btn-secondary btn-small">+ Add Recipient</button>
+            </div>
+            <div class="help-text">Enter phone number with country code (e.g., +63 for Philippines)</div>
+        </div>
+        
+        <!-- SECTION 2: Individual Pig Alerts -->
+        <div class="section">
+            <div class="section-title">🐷 Individual Pig Fever Detection</div>
+            
+            <div class="info-box">
+                ℹ️ Configure thresholds for detecting sick pigs (stationary + fever symptoms)
+            </div>
+            
+            <div class="checkbox-group" style="margin-bottom: 15px;">
+                <input type="checkbox" id="alert_individual_enabled" checked />
+                <label for="alert_individual_enabled" style="margin: 0; font-weight: bold;">Enable Individual Pig Alerts</label>
+            </div>
+            
+            <div class="config-grid">
+                <div class="form-group">
+                    <label>Stationary Alert Timer (Minutes)</label>
+                    <input type="number" id="stationary_alert_minutes" min="5" max="120" step="1" value="15" />
+                    <div class="help-text">Time a pig must be lying/sitting before triggering alert</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Heat Stress Extended Timer (Minutes)</label>
+                    <input type="number" id="stationary_heat_stress_minutes" min="10" max="120" step="1" value="30" />
+                    <div class="help-text">Extended timer when barn THI > threshold (hot conditions)</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Fever Temperature Delta (°C)</label>
+                    <input type="number" id="fever_delta_threshold_c" min="0" max="5" step="0.1" value="2.0" />
+                    <div class="help-text">Alert if thermal zone > (ambient + this value)</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Heat Stress Threshold (THI)</label>
+                    <input type="number" id="thi_heat_stress_threshold" min="60" max="90" step="1" value="78.0" />
+                    <div class="help-text">Temperature Humidity Index threshold for heat stress condition</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- SECTION 3: Population Lethargy Alerts -->
+        <div class="section">
+            <div class="section-title">🐄 Population Lethargy Detection</div>
+            
+            <div class="info-box">
+                ℹ️ Configure thresholds for herd-wide health events (many pigs down at once)
+            </div>
+            
+            <div class="checkbox-group" style="margin-bottom: 15px;">
+                <input type="checkbox" id="alert_population_enabled" checked />
+                <label for="alert_population_enabled" style="margin: 0; font-weight: bold;">Enable Population Alerts</label>
+            </div>
+            
+            <div class="config-grid">
+                <div class="form-group">
+                    <label>Lethargy Ratio (0.0 - 1.0)</label>
+                    <input type="number" id="population_lethargy_ratio" min="0.1" max="1.0" step="0.05" value="0.60" />
+                    <div class="help-text">Fraction of herd stationary to trigger alert (e.g., 0.60 = 60%)</div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Persistence Duration (Seconds)</label>
+                    <input type="number" id="population_persist_seconds" min="1" max="10" step="1" value="3" />
+                    <div class="help-text">How long lethargy condition must persist before alert</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- SECTION 4: Alert Deduplication -->
+        <div class="section">
+            <div class="section-title">⏱️ Alert Deduplication</div>
+            
+            <div class="info-box">
+                ℹ️ Prevent SMS spam by enforcing minimum gap between repeated alerts
+            </div>
+            
             <div class="form-group">
                 <label>Alert Cooldown (Minutes)</label>
-                <input type="number" id="cooldown" value="{{ config.gsm.cooldown_minutes }}" min="1" max="120">
-                <div class="help-text">Minimum gap between sending repeated SMS alerts.</div>
+                <input type="number" id="cooldown_minutes" min="1" max="120" step="1" value="5" />
+                <div class="help-text">Minimum gap between sending SMS alerts of the same type</div>
             </div>
-
-            <h3 style="color: #4CAF50; border-bottom: 1px solid #333; padding-bottom: 5px; margin-top: 30px;">Hybrid Risk Engine</h3>
-            
-            <div class="form-group">
-                <label>Individual: Stationary Alert Timer (Minutes)</label>
-                <input type="number" id="stat_alert" value="{{ config.health.stationary_alert_minutes }}" min="5" max="60">
-                <div class="help-text">Time a pig must be continuously lying/sitting to trigger an alert.</div>
-            </div>
-
-            <div class="form-group">
-                <label>Individual: Fever Delta Threshold (°C)</label>
-                <input type="number" step="0.1" id="fever_delta" value="{{ config.health.fever_delta_threshold_c }}">
-                <div class="help-text">Alert if pig thermal zone > (ambient + this value).</div>
-            </div>
-
-            <div class="form-group">
-                <label>Population: Lethargy Ratio (0.0 - 1.0)</label>
-                <input type="number" step="0.05" id="pop_ratio" value="{{ config.health.population_lethargy_ratio }}" min="0.1" max="1.0">
-                <div class="help-text">Fraction of herd that must be stationary to trigger a herd lethargy alert (e.g., 0.60 = 60%).</div>
-            </div>
-
-            <button type="submit" class="btn">Save & Apply Changes</button>
-            <div id="status-msg"></div>
-        </form>
+        </div>
+        
+        <!-- SECTION 5: Action Buttons -->
+        <div class="section" style="border-bottom: none;">
+            <button type="button" id="save-config-btn" class="btn btn-full">💾 Save All Settings</button>
+            <button type="button" id="reset-config-btn" class="btn btn-secondary btn-full" style="margin-top: 10px;">↻ Reset to Defaults</button>
+            <div class="help-text" style="margin-top: 10px; text-align: center;">Changes take effect immediately. No restart required.</div>
+        </div>
     </div>
 
     <script>
-        document.getElementById('settings-form').addEventListener('submit', function(e) {
-            e.preventDefault();
-            const statusMsg = document.getElementById('status-msg');
-            const btn = document.querySelector('.btn');
-            
-            // Parse comma-separated phone numbers into a list
-            let phonesRaw = document.getElementById('phone_numbers').value;
-            let phoneList = phonesRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
+        // Load on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            loadRecipients();
+            loadAlertConfig();
+        });
 
-            const payload = {
-                gsm: {
-                    phone_numbers: phoneList,
-                    cooldown_minutes: document.getElementById('cooldown').value
-                },
-                health: {
-                    stationary_alert_minutes: document.getElementById('stat_alert').value,
-                    fever_delta_threshold_c: document.getElementById('fever_delta').value,
-                    population_lethargy_ratio: document.getElementById('pop_ratio').value
-                }
-            };
+        // ─── Recipients Management ──────────────────────────────────────────
 
-            btn.disabled = true;
-            btn.innerText = "Saving...";
+        function loadRecipients() {
+            fetch('/api/recipients')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('recipients-list');
+                    if (!data.recipients || data.recipients.length === 0) {
+                        list.innerHTML = '<div class="recipients-empty">No recipients configured. Add one to enable SMS alerts.</div>';
+                        return;
+                    }
+                    list.innerHTML = data.recipients.map(r => `
+                        <div class="recipient-item">
+                            <div class="recipient-info">
+                                <div class="recipient-phone">${r.phone_number}</div>
+                                <div class="recipient-status ${r.enabled ? 'enabled' : 'disabled'}">
+                                    ${r.enabled ? '✓ Active' : '✗ Disabled'}
+                                </div>
+                            </div>
+                            <div class="recipient-actions">
+                                <button type="button" class="btn btn-small btn-toggle toggle-recipient-btn" data-id="${r.id}" data-enabled="${r.enabled}">
+                                    ${r.enabled ? 'Disable' : 'Enable'}
+                                </button>
+                                <button type="button" class="btn btn-small btn-remove remove-recipient-btn" data-id="${r.id}">Remove</button>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    document.querySelectorAll('.remove-recipient-btn').forEach(btn => {
+                        btn.addEventListener('click', removeRecipient);
+                    });
+                    document.querySelectorAll('.toggle-recipient-btn').forEach(btn => {
+                        btn.addEventListener('click', toggleRecipient);
+                    });
+                });
+        }
 
-            fetch('/settings', {
+        function addRecipient() {
+            const phone = document.getElementById('new_phone').value.trim();
+            if (!phone) {
+                showStatus('error', '❌ Please enter a phone number');
+                return;
+            }
+            fetch('/api/recipients', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+                body: JSON.stringify({ phone_number: phone })
             })
             .then(r => r.json())
             .then(data => {
-                statusMsg.style.display = 'block';
-                if(data.status === 'success') {
-                    statusMsg.className = 'success';
-                    statusMsg.innerText = "✅ " + data.message;
+                if (data.status === 'success') {
+                    document.getElementById('new_phone').value = '';
+                    loadRecipients();
+                    showStatus('success', '✅ ' + data.message);
                 } else {
-                    statusMsg.className = 'error';
-                    statusMsg.innerText = "❌ Error: " + data.message;
+                    showStatus('error', '❌ Error: ' + data.message);
                 }
-                setTimeout(() => { statusMsg.style.display = 'none'; }, 3000);
             })
-            .catch(err => {
-                statusMsg.style.display = 'block';
-                statusMsg.className = 'error';
-                statusMsg.innerText = "❌ Network Error";
+            .catch(err => showStatus('error', '❌ Network Error'));
+        }
+
+        function removeRecipient(e) {
+            const id = e.target.dataset.id;
+            if (!confirm('Remove this recipient?')) return;
+            fetch(`/api/recipients/${id}`, { method: 'DELETE' })
+                .then(r => r.json())
+                .then(data => {
+                    loadRecipients();
+                    showStatus('success', '✅ Recipient removed');
+                })
+                .catch(err => showStatus('error', '❌ Error removing recipient'));
+        }
+
+        function toggleRecipient(e) {
+            const id = e.target.dataset.id;
+            const currentEnabled = e.target.dataset.enabled === 'True' || e.target.dataset.enabled === '1';
+            fetch(`/api/recipients/${id}/toggle`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ enabled: !currentEnabled })
             })
-            .finally(() => {
-                btn.disabled = false;
-                btn.innerText = "Save & Apply Changes";
-            });
+            .then(r => r.json())
+            .then(data => {
+                loadRecipients();
+                showStatus('success', '✅ ' + data.message);
+            })
+            .catch(err => showStatus('error', '❌ Error toggling recipient'));
+        }
+
+        // ─── Alert Configuration Management ──────────────────────────────────
+
+        function loadAlertConfig() {
+            fetch('/api/alert_config')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const config = data.config;
+                        document.getElementById('stationary_alert_minutes').value = config.stationary_alert_minutes;
+                        document.getElementById('stationary_heat_stress_minutes').value = config.stationary_heat_stress_minutes;
+                        document.getElementById('fever_delta_threshold_c').value = config.fever_delta_threshold_c;
+                        document.getElementById('population_lethargy_ratio').value = config.population_lethargy_ratio;
+                        document.getElementById('population_persist_seconds').value = config.population_persist_seconds;
+                        document.getElementById('thi_heat_stress_threshold').value = config.thi_heat_stress_threshold;
+                        document.getElementById('cooldown_minutes').value = config.cooldown_minutes;
+                        document.getElementById('alert_individual_enabled').checked = config.alert_individual_enabled;
+                        document.getElementById('alert_population_enabled').checked = config.alert_population_enabled;
+                    }
+                })
+                .catch(err => console.error('Failed to load alert config:', err));
+        }
+
+        function saveAlertConfig() {
+            const config = {
+                stationary_alert_minutes: parseFloat(document.getElementById('stationary_alert_minutes').value),
+                stationary_heat_stress_minutes: parseFloat(document.getElementById('stationary_heat_stress_minutes').value),
+                fever_delta_threshold_c: parseFloat(document.getElementById('fever_delta_threshold_c').value),
+                population_lethargy_ratio: parseFloat(document.getElementById('population_lethargy_ratio').value),
+                population_persist_seconds: parseInt(document.getElementById('population_persist_seconds').value),
+                thi_heat_stress_threshold: parseFloat(document.getElementById('thi_heat_stress_threshold').value),
+                cooldown_minutes: parseInt(document.getElementById('cooldown_minutes').value),
+                alert_individual_enabled: document.getElementById('alert_individual_enabled').checked,
+                alert_population_enabled: document.getElementById('alert_population_enabled').checked,
+            };
+
+            fetch('/api/alert_config', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showStatus('success', '✅ Settings saved! Changes take effect immediately.');
+                    loadAlertConfig();  // Reload to confirm
+                } else {
+                    showStatus('error', '❌ Error: ' + data.message);
+                }
+            })
+            .catch(err => showStatus('error', '❌ Network error saving settings'));
+        }
+
+        function resetToDefaults() {
+            if (!confirm('Reset all settings to defaults? This will overwrite current configuration.')) {
+                return;
+            }
+            const defaults = {
+                stationary_alert_minutes: 15.0,
+                stationary_heat_stress_minutes: 30.0,
+                fever_delta_threshold_c: 2.0,
+                population_lethargy_ratio: 0.60,
+                population_persist_seconds: 3,
+                thi_heat_stress_threshold: 78.0,
+                cooldown_minutes: 5,
+                alert_individual_enabled: true,
+                alert_population_enabled: true,
+            };
+
+            fetch('/api/alert_config', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(defaults)
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    loadAlertConfig();
+                    showStatus('success', '✅ Reset to defaults');
+                } else {
+                    showStatus('error', '❌ Error: ' + data.message);
+                }
+            })
+            .catch(err => showStatus('error', '❌ Network error'));
+        }
+
+        function showStatus(className, message) {
+            const msg = document.getElementById('status-msg');
+            msg.className = className;
+            msg.innerText = message;
+            msg.style.display = 'block';
+            setTimeout(() => { msg.style.display = 'none'; }, 4000);
+        }
+
+        // Event Listeners
+        document.getElementById('add-recipient-btn').addEventListener('click', addRecipient);
+        document.getElementById('save-config-btn').addEventListener('click', saveAlertConfig);
+        document.getElementById('reset-config-btn').addEventListener('click', resetToDefaults);
+        
+        // Allow Enter key to add recipient
+        document.getElementById('new_phone').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                addRecipient();
+            }
         });
     </script>
+
 </body>
 </html>

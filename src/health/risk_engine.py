@@ -86,10 +86,14 @@ class HerdRiskEngine:
     """
     Hybrid dual-channel health risk engine.
     Evaluates per-track and population-level signals to detect pen-level risk.
+    
+    Configuration can be loaded from database (dynamic) or provided as constructor args (static).
+    Database config takes precedence for any overlapping parameters.
     """
 
     def __init__(
         self,
+        repository: Optional[object] = None,
         stationary_behaviors: Optional[List[str]] = None,
         stationary_alert_minutes: float = 15.0,
         stationary_heat_stress_minutes: float = 30.0,
@@ -98,7 +102,27 @@ class HerdRiskEngine:
         population_persist_seconds: int = 3,
         thi_heat_stress_threshold: float = 78.0,
         cooldown_minutes: int = 5,
+        alert_individual_enabled: bool = True,
+        alert_population_enabled: bool = True,
     ) -> None:
+        # If repository provided, load config from database (runtime-configurable)
+        if repository:
+            try:
+                cfg = repository.get_herd_risk_engine_config()
+                stationary_alert_minutes = cfg.get("stationary_alert_minutes", stationary_alert_minutes)
+                stationary_heat_stress_minutes = cfg.get("stationary_heat_stress_minutes", stationary_heat_stress_minutes)
+                fever_delta_threshold_c = cfg.get("fever_delta_threshold_c", fever_delta_threshold_c)
+                population_lethargy_ratio = cfg.get("population_lethargy_ratio", population_lethargy_ratio)
+                population_persist_seconds = cfg.get("population_persist_seconds", population_persist_seconds)
+                thi_heat_stress_threshold = cfg.get("thi_heat_stress_threshold", thi_heat_stress_threshold)
+                cooldown_minutes = cfg.get("cooldown_minutes", cooldown_minutes)
+                alert_individual_enabled = cfg.get("alert_individual_enabled", alert_individual_enabled)
+                alert_population_enabled = cfg.get("alert_population_enabled", alert_population_enabled)
+                logger.info(f"[HerdRiskEngine] Loaded configuration from database")
+            except Exception as e:
+                logger.warning(f"[HerdRiskEngine] Failed to load config from database, using defaults: {e}")
+        
+        self._repository = repository
         self._stationary_behaviors = set(stationary_behaviors or {"lying", "sitting"})
         self._alert_minutes = stationary_alert_minutes
         self._heat_stress_minutes = stationary_heat_stress_minutes
@@ -107,6 +131,8 @@ class HerdRiskEngine:
         self._pop_persist = population_persist_seconds
         self._thi_threshold = thi_heat_stress_threshold
         self._cooldown_sec = cooldown_minutes * 60.0
+        self._individual_alert_enabled = alert_individual_enabled
+        self._population_alert_enabled = alert_population_enabled
         # Per-alert-type timestamp of last emitted alert, for engine-level deduplication
         self._last_alert_time: dict[str, float] = {}
 
@@ -128,6 +154,7 @@ class HerdRiskEngine:
         """
         Evaluate all detection channels and return triggered alerts.
         Returns an empty list when everything is normal.
+        Respects alert_type_enabled flags for runtime enable/disable control.
         """
         alerts: List[AlertEvent] = []
         ambient_temp = ambient.temp_c if ambient else 30.0
@@ -137,38 +164,40 @@ class HerdRiskEngine:
         threshold_sec = self._get_stationary_threshold(ambient)
 
         # ── Channel 1: Individual Anomaly ─────────────────────────────────────
-        for track in active_tracks:
-            if (
-                track.behavior in self._stationary_behaviors
-                and track.stationary_duration_sec >= threshold_sec
-                and track.thermal_zone_temp > (ambient_temp + self._fever_delta)
-            ):
-                # Engine-level cooldown: suppress repeat alert within cooldown window
-                last_t = self._last_alert_time.get(AlertType.INDIVIDUAL.value, 0.0)
-                if time.time() - last_t < self._cooldown_sec:
-                    break  # Cooldown active — skip this cycle
-                self._last_alert_time[AlertType.INDIVIDUAL.value] = time.time()
-                alerts.append(AlertEvent(
-                    alert_type=AlertType.INDIVIDUAL,
-                    trigger_reason="stationary_fever",
-                    ambient_temp_c=ambient_temp,
-                    ambient_rh=ambient_rh,
-                    ambient_thi=ambient_thi,
-                    pig_zone_temp_c=track.thermal_zone_temp,
-                    stationary_duration_sec=track.stationary_duration_sec,
-                    stationary_count=None,
-                    total_pig_count=None,
-                ))
-                logger.warning(
-                    f"[Channel 1] Track {track.track_id} stationary "
-                    f"{track.stationary_duration_sec/60:.1f}m, "
-                    f"zone {track.thermal_zone_temp:.1f}°C. ALERT."
-                )
-                break   # One alert per evaluation cycle is enough
+        if self._individual_alert_enabled:
+            for track in active_tracks:
+                if (
+                    track.behavior in self._stationary_behaviors
+                    and track.stationary_duration_sec >= threshold_sec
+                    and track.thermal_zone_temp > (ambient_temp + self._fever_delta)
+                ):
+                    # Engine-level cooldown: suppress repeat alert within cooldown window
+                    last_t = self._last_alert_time.get(AlertType.INDIVIDUAL.value, 0.0)
+                    if time.time() - last_t < self._cooldown_sec:
+                        break  # Cooldown active — skip this cycle
+                    self._last_alert_time[AlertType.INDIVIDUAL.value] = time.time()
+                    alerts.append(AlertEvent(
+                        alert_type=AlertType.INDIVIDUAL,
+                        trigger_reason="stationary_fever",
+                        ambient_temp_c=ambient_temp,
+                        ambient_rh=ambient_rh,
+                        ambient_thi=ambient_thi,
+                        pig_zone_temp_c=track.thermal_zone_temp,
+                        stationary_duration_sec=track.stationary_duration_sec,
+                        stationary_count=None,
+                        total_pig_count=None,
+                    ))
+                    logger.warning(
+                        f"[Channel 1] Track {track.track_id} stationary "
+                        f"{track.stationary_duration_sec/60:.1f}m, "
+                        f"zone {track.thermal_zone_temp:.1f}°C. ALERT."
+                    )
+                    break   # One alert per evaluation cycle is enough
 
         # ── Channel 2: Population Lethargy ────────────────────────────────────
         if (
-            not alerts  # Don't double-alert in same cycle
+            self._population_alert_enabled
+            and not alerts  # Don't double-alert in same cycle
             and persistent_lethargy_ratio >= self._pop_ratio
             and population_snapshot.total_detected >= 2  # Need at least 2 pigs to calc ratio
         ):

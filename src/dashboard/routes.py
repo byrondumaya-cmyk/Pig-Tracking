@@ -216,3 +216,204 @@ def system_status():
         "uptime": uptime_str,
         "ai_model": model_name,
     })
+
+
+# --- Alert Recipients Management --------------------------------
+
+@dashboard_bp.route('/api/recipients', methods=['GET'])
+def get_recipients():
+    """Return list of all alert recipients (enabled and disabled)."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Repository unavailable"}), 503
+    recipients = repo.get_all_recipients()
+    return jsonify({"status": "success", "recipients": recipients})
+
+
+@dashboard_bp.route('/api/recipients', methods=['POST'])
+def add_recipient():
+    """Add a new alert recipient."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Repository unavailable"}), 503
+    
+    data = request.json or {}
+    phone_number = data.get("phone_number", "").strip()
+    
+    if not phone_number:
+        return jsonify({"status": "error", "message": "Phone number required"}), 400
+    
+    try:
+        recipient_id = repo.add_recipient(phone_number)
+        return jsonify({
+            "status": "success",
+            "message": f"Recipient added: {phone_number}",
+            "recipient_id": recipient_id
+        }), 201
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@dashboard_bp.route('/api/recipients/<int:recipient_id>', methods=['DELETE'])
+def remove_recipient(recipient_id: int):
+    """Remove an alert recipient."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Repository unavailable"}), 503
+    
+    try:
+        repo.remove_recipient(recipient_id)
+        return jsonify({"status": "success", "message": "Recipient removed"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@dashboard_bp.route('/api/recipients/<int:recipient_id>/toggle', methods=['PATCH'])
+def toggle_recipient(recipient_id: int):
+    """Enable or disable a recipient."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Repository unavailable"}), 503
+    
+    data = request.json or {}
+    enabled = data.get("enabled", True)
+    
+    try:
+        repo.toggle_recipient(recipient_id, enabled)
+        status_str = "enabled" if enabled else "disabled"
+        return jsonify({
+            "status": "success",
+            "message": f"Recipient {status_str}",
+            "recipient_id": recipient_id,
+            "enabled": enabled
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+# --- Alert Configuration Management -----
+
+@dashboard_bp.route('/api/alert_config', methods=['GET'])
+def get_alert_config():
+    """Return current alert engine configuration."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Repository unavailable"}), 503
+    
+    try:
+        config = repo.get_herd_risk_engine_config()
+        return jsonify({
+            "status": "success",
+            "config": config
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@dashboard_bp.route('/api/alert_config', methods=['PATCH'])
+def update_alert_config():
+    """Update alert engine configuration."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Repository unavailable"}), 503
+    
+    data = request.json or {}
+    
+    # Validate configuration parameters
+    valid_keys = {
+        "stationary_alert_minutes", "stationary_heat_stress_minutes",
+        "fever_delta_threshold_c", "population_lethargy_ratio",
+        "population_persist_seconds", "thi_heat_stress_threshold",
+        "cooldown_minutes", "alert_individual_enabled", "alert_population_enabled"
+    }
+    
+    invalid_keys = set(data.keys()) - valid_keys
+    if invalid_keys:
+        return jsonify({
+            "status": "error",
+            "message": f"Invalid configuration keys: {', '.join(invalid_keys)}"
+        }), 400
+    
+    # Type validation and conversion
+    type_map = {
+        "stationary_alert_minutes": float,
+        "stationary_heat_stress_minutes": float,
+        "fever_delta_threshold_c": float,
+        "population_lethargy_ratio": float,
+        "population_persist_seconds": int,
+        "thi_heat_stress_threshold": float,
+        "cooldown_minutes": int,
+        "alert_individual_enabled": bool,
+        "alert_population_enabled": bool,
+    }
+    
+    try:
+        # Convert and validate types
+        validated_data = {}
+        for key, value in data.items():
+            expected_type = type_map[key]
+            if expected_type == bool:
+                validated_data[key] = value in (True, 1, "1", "true", "yes")
+            else:
+                validated_data[key] = expected_type(value)
+        
+        # Validate ranges
+        if "stationary_alert_minutes" in validated_data and validated_data["stationary_alert_minutes"] <= 0:
+            return jsonify({"status": "error", "message": "stationary_alert_minutes must be > 0"}), 400
+        if "fever_delta_threshold_c" in validated_data and validated_data["fever_delta_threshold_c"] < 0:
+            return jsonify({"status": "error", "message": "fever_delta_threshold_c must be >= 0"}), 400
+        if "population_lethargy_ratio" in validated_data:
+            ratio = validated_data["population_lethargy_ratio"]
+            if not (0 < ratio <= 1):
+                return jsonify({"status": "error", "message": "population_lethargy_ratio must be between 0 and 1"}), 400
+        if "thi_heat_stress_threshold" in validated_data and validated_data["thi_heat_stress_threshold"] < 0:
+            return jsonify({"status": "error", "message": "thi_heat_stress_threshold must be >= 0"}), 400
+        if "cooldown_minutes" in validated_data and validated_data["cooldown_minutes"] <= 0:
+            return jsonify({"status": "error", "message": "cooldown_minutes must be > 0"}), 400
+        
+        # Save to database
+        repo.set_herd_risk_engine_config(validated_data)
+        
+        return jsonify({
+            "status": "success",
+            "message": "Alert configuration updated",
+            "config": repo.get_herd_risk_engine_config()
+        })
+    except (ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": f"Invalid value: {str(e)}"}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@dashboard_bp.route('/api/alert_config/defaults', methods=['GET'])
+def get_alert_config_defaults():
+    """Return default alert configuration values."""
+    defaults = {
+        "stationary_alert_minutes": 15.0,
+        "stationary_heat_stress_minutes": 30.0,
+        "fever_delta_threshold_c": 2.0,
+        "population_lethargy_ratio": 0.60,
+        "population_persist_seconds": 3,
+        "thi_heat_stress_threshold": 78.0,
+        "cooldown_minutes": 5,
+        "alert_individual_enabled": True,
+        "alert_population_enabled": True,
+    }
+    
+    descriptions = {
+        "stationary_alert_minutes": "Minutes before triggering individual sick pig alert",
+        "stationary_heat_stress_minutes": "Extended alert time when THI > threshold (heat stress condition)",
+        "fever_delta_threshold_c": "Temperature delta in °C to trigger fever alert",
+        "population_lethargy_ratio": "Ratio of pigs stationary to trigger population alert (0-1)",
+        "population_persist_seconds": "Duration for population alert persistence (seconds)",
+        "thi_heat_stress_threshold": "Temperature Humidity Index heat stress threshold",
+        "cooldown_minutes": "Minimum minutes between repeated alerts of same type",
+        "alert_individual_enabled": "Enable/disable individual pig fever alerts",
+        "alert_population_enabled": "Enable/disable population lethargy alerts",
+    }
+    
+    return jsonify({
+        "status": "success",
+        "defaults": defaults,
+        "descriptions": descriptions
+    })

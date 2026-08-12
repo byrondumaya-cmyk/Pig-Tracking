@@ -101,6 +101,7 @@ class SwineHealthMonitor:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         initialize_database(db_path)
         self.repository = SwineRepository(db_path)
+        self.repository.initialize_default_alert_config()  # Ensure alert config initialized
         logger.info("Database ready: %s", db_path)
 
         # AI Detector
@@ -157,6 +158,7 @@ class SwineHealthMonitor:
                 port=self.cfg.gsm.serial_port,
                 baud_rate=self.cfg.gsm.baud_rate,
                 cooldown_minutes=self.cfg.gsm.cooldown_minutes,
+                repository=self.repository,  # Pass repository for dynamic recipient lookup
             )
             logger.info("GSM900A notifier initialized.")
 
@@ -167,6 +169,7 @@ class SwineHealthMonitor:
         )
         self.pig_counter = None  # Will initialize in run()
         self.risk_engine = HerdRiskEngine(
+            repository=self.repository,  # Load config from database (runtime-configurable)
             stationary_behaviors=h.stationary_behaviors,
             stationary_alert_minutes=h.stationary_alert_minutes,
             stationary_heat_stress_minutes=h.stationary_heat_stress_minutes,
@@ -176,7 +179,7 @@ class SwineHealthMonitor:
             thi_heat_stress_threshold=h.thi_heat_stress_threshold,
             cooldown_minutes=h.cooldown_minutes,
         )
-        logger.info("Hybrid risk engine ready.")
+        logger.info("Hybrid risk engine ready (config from database).")
 
         Path(h.snapshot_dir).mkdir(parents=True, exist_ok=True)
         logger.info("All subsystems initialized.")
@@ -331,18 +334,25 @@ class SwineHealthMonitor:
                     stationary_count=alert.stationary_count,
                     total_pig_count=alert.total_pig_count,
                 )
-                if self.gsm and self.cfg.gsm.phone_numbers:
-                    sent = self.gsm.send_alert(
-                        phone_numbers=self.cfg.gsm.phone_numbers,
-                        alert_type=alert.alert_type.value,
-                        message=alert.sms_message(),
-                    )
-                    if sent:
-                        # Mark SMS dispatched — does NOT resolve the alert.
-                        # Farmer must confirm inspection via dashboard.
-                        self.repository.mark_sms_sent(
-                            alert_id, self.cfg.gsm.phone_numbers
+                if self.gsm:
+                    # Try to get recipients from repository, fall back to config
+                    phone_numbers = None
+                    try:
+                        phone_numbers = self.repository.get_enabled_recipients()
+                    except Exception:
+                        # Repository lookup failed, use config as fallback
+                        phone_numbers = self.cfg.gsm.phone_numbers if hasattr(self.cfg.gsm, 'phone_numbers') else []
+                    
+                    if phone_numbers:
+                        sent = self.gsm.send_alert(
+                            phone_numbers=phone_numbers,
+                            alert_type=alert.alert_type.value,
+                            message=alert.sms_message(),
                         )
+                        if sent:
+                            # Mark SMS dispatched — does NOT resolve the alert.
+                            # Farmer must confirm inspection via dashboard.
+                            self.repository.mark_sms_sent(alert_id, phone_numbers)
 
             # --- Update shared frame buffer for dashboard stream ---
             from src.dashboard.stream import FrameBuffer

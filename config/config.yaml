@@ -13,8 +13,8 @@ system:
 # ----- Camera -----------------------------------------------
 camera:
   device_index: 0              # USB camera index (0 = first USB cam)
-  width: 320                   # Capture width in pixels
-  height: 240                  # Capture height in pixels
+  width: 640                   # Capture width in pixels (increased from 320 for readability)
+  height: 480                  # Capture height in pixels (increased from 240 for readability)
   fps: 30                      # Target capture FPS
   flip_horizontal: false
   flip_vertical: false

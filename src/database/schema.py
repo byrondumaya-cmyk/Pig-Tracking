@@ -55,6 +55,24 @@ CREATE TABLE IF NOT EXISTS detections (
     box_y2 INTEGER,
     zone_temp_c REAL
 );
+
+-- Alert recipients (phone numbers for SMS dispatch)
+CREATE TABLE IF NOT EXISTS alert_recipients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    phone_number TEXT NOT NULL UNIQUE,
+    enabled INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- Alert system configuration (editable via dashboard)
+CREATE TABLE IF NOT EXISTS alert_config (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    data_type TEXT,          -- 'float' | 'int' | 'string' | 'bool'
+    description TEXT,
+    updated_at TEXT NOT NULL
+);
 """
 
 def initialize_database(db_path: str | Path) -> None:
