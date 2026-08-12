@@ -49,7 +49,7 @@ def _x_to_box(x: np.ndarray) -> np.ndarray:
         x[1] - h / 2.0,
         x[0] + w / 2.0,
         x[1] + h / 2.0,
-    ])
+    ], dtype=float).reshape(4,)
 
 
 class KalmanBoxTracker:
@@ -181,7 +181,7 @@ class SORTTracker:
         for i, trk in enumerate(self.trackers):
             state = trk.get_state()
             if (trk.time_since_update <= 1) and (trk.hit_streak >= self.min_hits or self.frame_count <= self.min_hits):
-                results.append(np.concatenate([state, [trk.id + 1]]))
+                results.append(np.concatenate([state.flatten(), [trk.id + 1]]))
             if trk.time_since_update > self.max_age:
                 to_remove.append(i)
 
