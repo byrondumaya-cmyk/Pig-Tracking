@@ -363,6 +363,238 @@ def update_alert_config():
         if "fever_delta_threshold_c" in validated_data and validated_data["fever_delta_threshold_c"] < 0:
             return jsonify({"status": "error", "message": "fever_delta_threshold_c must be >= 0"}), 400
         if "population_lethargy_ratio" in validated_data:
+            if not (0 < validated_data["population_lethargy_ratio"] <= 1):
+                return jsonify({"status": "error", "message": "population_lethargy_ratio must be between 0 and 1"}), 400
+        if "cooldown_minutes" in validated_data and validated_data["cooldown_minutes"] <= 0:
+            return jsonify({"status": "error", "message": "cooldown_minutes must be > 0"}), 400
+        
+        # Save to database
+        repo = current_app.config.get("SHM_REPO")
+        if not repo:
+            return jsonify({"status": "error", "message": "Database unavailable"}), 503
+        
+        repo.set_herd_risk_engine_config(validated_data)
+        updated_config = repo.get_herd_risk_engine_config()
+        
+        return jsonify({
+            "status": "success",
+            "message": "Alert configuration updated",
+            "config": updated_config
+        })
+    
+    except (ValueError, TypeError) as e:
+        return jsonify({"status": "error", "message": f"Invalid data type: {str(e)}"}), 400
+
+
+# ─── SMS MESSAGE TEMPLATES ──────────────────────────────────────────────────
+
+@dashboard_bp.route('/api/sms_templates', methods=['GET'])
+def get_sms_templates():
+    """Get all SMS message templates."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    alert_type = request.args.get("alert_type")
+    templates = repo.get_sms_templates(alert_type)
+    return jsonify({"status": "success", "templates": templates})
+
+
+@dashboard_bp.route('/api/sms_templates', methods=['POST'])
+def create_sms_template():
+    """Create a new SMS message template."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    data = request.get_json()
+    alert_type = data.get("alert_type")
+    name = data.get("name")
+    message_body = data.get("message_body")
+    
+    if not alert_type or not name or not message_body:
+        return jsonify({"status": "error", "message": "Missing required fields"}), 400
+    
+    try:
+        template_id = repo.create_sms_template(alert_type, name, message_body)
+        return jsonify({
+            "status": "success",
+            "message": "Template created",
+            "template_id": template_id
+        }), 201
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to create template: {str(e)}"}), 400
+
+
+@dashboard_bp.route('/api/sms_templates/<int:template_id>', methods=['PATCH'])
+def update_sms_template(template_id):
+    """Update an SMS message template."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    data = request.get_json()
+    message_body = data.get("message_body")
+    enabled = data.get("enabled")
+    
+    if not message_body:
+        return jsonify({"status": "error", "message": "message_body required"}), 400
+    
+    try:
+        repo.update_sms_template(template_id, message_body, enabled)
+        return jsonify({"status": "success", "message": "Template updated"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to update template: {str(e)}"}), 400
+
+
+@dashboard_bp.route('/api/sms_templates/<int:template_id>', methods=['DELETE'])
+def delete_sms_template(template_id):
+    """Delete an SMS message template."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    try:
+        repo.delete_sms_template(template_id)
+        return jsonify({"status": "success", "message": "Template deleted"})
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to delete template: {str(e)}"}), 400
+
+
+# ─── SMS MESSAGE LOGS ───────────────────────────────────────────────────────
+
+@dashboard_bp.route('/api/sms_logs', methods=['GET'])
+def get_sms_logs():
+    """Get SMS message logs with optional date filtering."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    date_str = request.args.get("date")  # YYYY-MM-DD format
+    alert_type = request.args.get("alert_type")
+    
+    if date_str:
+        logs = repo.get_sms_logs_by_date(date_str)
+    else:
+        days_back = request.args.get("days", default=7, type=int)
+        logs = repo.get_sms_logs(days_back, alert_type)
+    
+    return jsonify({"status": "success", "logs": logs})
+
+
+@dashboard_bp.route('/api/sms_logs/dates', methods=['GET'])
+def get_sms_log_dates():
+    """Get all unique dates that have SMS logs."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    dates = repo.get_sms_log_dates()
+    return jsonify({"status": "success", "dates": dates})
+
+
+@dashboard_bp.route('/api/sms_logs/delete', methods=['POST'])
+def delete_sms_logs():
+    """Delete SMS logs before a specific date."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    data = request.get_json()
+    before_date = data.get("before_date")  # YYYY-MM-DD format
+    
+    if not before_date:
+        return jsonify({"status": "error", "message": "before_date required"}), 400
+    
+    try:
+        deleted_count = repo.delete_sms_logs_before(before_date)
+        return jsonify({
+            "status": "success",
+            "message": f"Deleted {deleted_count} SMS log entries"
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Failed to delete logs: {str(e)}"}), 400
+
+
+# ─── SYSTEM TIME SYNC ───────────────────────────────────────────────────────
+
+@dashboard_bp.route('/api/time_sync', methods=['GET'])
+def get_system_time():
+    """Get current system time and recent sync logs."""
+    from datetime import datetime
+    
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    current_time = datetime.utcnow().isoformat()
+    sync_logs = repo.get_time_sync_logs(limit=10)
+    
+    return jsonify({
+        "status": "success",
+        "current_time": current_time,
+        "sync_logs": sync_logs
+    })
+
+
+@dashboard_bp.route('/api/time_sync', methods=['POST'])
+def sync_system_time():
+    """Synchronize system time (from NTP or manual)."""
+    import subprocess
+    from datetime import datetime
+    
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+    
+    data = request.get_json()
+    source_type = data.get("source_type", "ntp")  # 'ntp', 'manual', or 'phone'
+    new_time_str = data.get("new_time")  # ISO 8601 format
+    
+    old_time = datetime.utcnow().isoformat()
+    
+    try:
+        if source_type == "manual" and new_time_str:
+            # Manual time setting (on Raspberry Pi with timedatectl)
+            result = subprocess.run(
+                ["timedatectl", "set-time", new_time_str],
+                capture_output=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                error_msg = result.stderr.decode('utf-8', errors='ignore')
+                repo.log_time_sync("manual", old_time, new_time_str, "failed", None, error_msg)
+                return jsonify({"status": "error", "message": "Failed to set time"}), 400
+        
+        elif source_type == "ntp":
+            # NTP sync (requires systemd-timesyncd)
+            result = subprocess.run(
+                ["timedatectl", "set-ntp", "true"],
+                capture_output=True,
+                timeout=10
+            )
+            if result.returncode != 0:
+                error_msg = result.stderr.decode('utf-8', errors='ignore')
+                repo.log_time_sync("ntp", old_time, "", "failed", None, error_msg)
+                return jsonify({"status": "error", "message": "NTP sync failed"}), 400
+        
+        new_time = datetime.utcnow().isoformat()
+        repo.log_time_sync(source_type, old_time, new_time, "success", data.get("source_ip"))
+        
+        return jsonify({
+            "status": "success",
+            "message": f"Time synchronized ({source_type})",
+            "old_time": old_time,
+            "new_time": new_time
+        })
+    
+    except subprocess.TimeoutExpired:
+        repo.log_time_sync(source_type, old_time, "", "failed", None, "Timeout")
+        return jsonify({"status": "error", "message": "Time sync timeout"}), 408
+    except Exception as e:
+        repo.log_time_sync(source_type, old_time, "", "failed", None, str(e))
+        return jsonify({"status": "error", "message": f"Time sync error: {str(e)}"}), 400
+
             ratio = validated_data["population_lethargy_ratio"]
             if not (0 < ratio <= 1):
                 return jsonify({"status": "error", "message": "population_lethargy_ratio must be between 0 and 1"}), 400

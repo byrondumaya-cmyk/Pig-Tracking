@@ -102,6 +102,7 @@ class SwineHealthMonitor:
         initialize_database(db_path)
         self.repository = SwineRepository(db_path)
         self.repository.initialize_default_alert_config()  # Ensure alert config initialized
+        self.repository.initialize_default_sms_templates()  # Ensure SMS templates initialized
         logger.info("Database ready: %s", db_path)
 
         # AI Detector

@@ -373,7 +373,64 @@
             </div>
         </div>
         
-        <!-- SECTION 5: Action Buttons -->
+        <!-- SECTION 6: SMS Message Templates -->
+        <div class="section">
+            <div class="section-title">📧 SMS Message Templates</div>
+            
+            <div class="info-box">
+                ℹ️ Customize the text of SMS alerts. Use variables like {zone_temp}, {duration}, {stationary_count}
+            </div>
+            
+            <div id="templates-list" style="margin-bottom: 15px;">
+                <div style="text-align: center; color: #888; padding: 20px;">Loading templates...</div>
+            </div>
+            
+            <button type="button" id="reset-templates-btn" class="btn btn-secondary">🔄 Reset Templates to Default</button>
+        </div>
+        
+        <!-- SECTION 7: SMS Message Logs -->
+        <div class="section">
+            <div class="section-title">📋 SMS Message Logs</div>
+            
+            <div class="info-box">
+                ℹ️ View SMS alert history. Select a date to filter logs, or delete old entries.
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <input type="date" id="log-date-picker" />
+                <button type="button" id="filter-logs-btn" class="btn btn-secondary" style="width: auto;">🔍 Filter</button>
+                <button type="button" id="clear-logs-btn" class="btn btn-remove" style="width: auto;">🗑️ Delete Old</button>
+            </div>
+            
+            <div id="sms-logs-list" style="max-height: 400px; overflow-y: auto;">
+                <div style="text-align: center; color: #888; padding: 20px;">No logs to display</div>
+            </div>
+        </div>
+        
+        <!-- SECTION 8: System Time Sync -->
+        <div class="section">
+            <div class="section-title">🕐 System Time Synchronization</div>
+            
+            <div class="info-box">
+                ℹ️ Synchronize system time via NTP or manual entry. Keep accurate time for logs and alerts.
+            </div>
+            
+            <div class="form-group">
+                <label>Current System Time</label>
+                <div id="current-time" style="padding: 10px; background-color: #2a2a2a; border-radius: 4px; font-weight: bold;">--:--:--</div>
+            </div>
+            
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button type="button" id="sync-ntp-btn" class="btn btn-secondary">🌐 Sync via NTP</button>
+                <button type="button" id="sync-manual-btn" class="btn btn-secondary">✏️ Set Manual Time</button>
+            </div>
+            
+            <div id="time-sync-logs" style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
+                <div style="text-align: center; color: #888; padding: 20px; font-size: 0.9rem;">No sync history</div>
+            </div>
+        </div>
+        
+        <!-- SECTION 9: Action Buttons -->
         <div class="section" style="border-bottom: none;">
             <button type="button" id="save-config-btn" class="btn btn-full">💾 Save All Settings</button>
             <button type="button" id="reset-config-btn" class="btn btn-secondary btn-full" style="margin-top: 10px;">↻ Reset to Defaults</button>
@@ -386,6 +443,12 @@
         document.addEventListener('DOMContentLoaded', function() {
             loadRecipients();
             loadAlertConfig();
+            loadSmsTemplates();
+            loadSmLogs();
+            updateCurrentTime();
+            loadTimeSyncLogs();
+            // Update time every second
+            setInterval(updateCurrentTime, 1000);
         });
 
         // ─── Recipients Management ──────────────────────────────────────────
@@ -570,10 +633,159 @@
             setTimeout(() => { msg.style.display = 'none'; }, 4000);
         }
 
+        // ─── SMS Message Templates ────────────────────────────────────────
+
+        function loadSmsTemplates() {
+            fetch('/api/sms_templates')
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('templates-list');
+                    if (!data.templates || data.templates.length === 0) {
+                        list.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">No templates configured</div>';
+                        return;
+                    }
+                    list.innerHTML = data.templates.map(t => `
+                        <div style="background-color: #2a2a2a; padding: 10px; margin-bottom: 8px; border-radius: 4px; border-left: 3px solid #4CAF50;">
+                            <div style="font-weight: bold; color: #4CAF50;">${t.name} (${t.alert_type})</div>
+                            <div style="font-size: 0.9rem; color: #ccc; margin: 5px 0; word-break: break-word;">"${t.message_body}"</div>
+                            <button type="button" class="btn btn-small btn-secondary" style="margin-top: 5px; width: auto;" onclick="editTemplate(${t.id})">Edit</button>
+                        </div>
+                    `).join('');
+                })
+                .catch(err => console.error('Failed to load templates:', err));
+        }
+
+        function editTemplate(templateId) {
+            const newMessage = prompt('Enter new message template:');
+            if (!newMessage) return;
+            
+            fetch(`/api/sms_templates/${templateId}`, {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message_body: newMessage })
+            })
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    showStatus('success', '✅ Template updated');
+                    loadSmsTemplates();
+                } else {
+                    showStatus('error', '❌ Error: ' + data.message);
+                }
+            })
+            .catch(err => showStatus('error', '❌ Network error'));
+        }
+
+        // ─── SMS Message Logs ────────────────────────────────────────────
+
+        function loadSmLogs() {
+            const dateInput = document.getElementById('log-date-picker').value;
+            const url = dateInput ? `/api/sms_logs?date=${dateInput}` : '/api/sms_logs?days=7';
+            
+            fetch(url)
+                .then(r => r.json())
+                .then(data => {
+                    const list = document.getElementById('sms-logs-list');
+                    if (!data.logs || data.logs.length === 0) {
+                        list.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">No logs to display</div>';
+                        return;
+                    }
+                    list.innerHTML = data.logs.map(log => `
+                        <div style="background-color: #2a2a2a; padding: 10px; margin-bottom: 8px; border-radius: 4px; border-left: 3px solid ${log.status === 'sent' ? '#4CAF50' : '#f44336'};">
+                            <div style="font-size: 0.85rem; color: #888;">${log.timestamp}</div>
+                            <div style="font-weight: bold; margin: 5px 0;">${log.alert_type.toUpperCase()} → ${log.recipient_phone}</div>
+                            <div style="font-size: 0.9rem; color: #ccc; word-break: break-word;">${log.message_body}</div>
+                            <div style="font-size: 0.8rem; color: ${log.status === 'sent' ? '#4CAF50' : '#f44336'}; margin-top: 5px;">Status: ${log.status}</div>
+                        </div>
+                    `).join('');
+                })
+                .catch(err => console.error('Failed to load logs:', err));
+        }
+
+        function deleteOldLogs() {
+            const beforeDate = prompt('Delete logs before date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
+            if (!beforeDate) return;
+            if (!confirm(`Delete all SMS logs before ${beforeDate}?`)) return;
+            
+            fetch('/api/sms_logs/delete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ before_date: beforeDate })
+            })
+            .then(r => r.json())
+            .then(data => {
+                showStatus('success', '✅ ' + data.message);
+                loadSmLogs();
+            })
+            .catch(err => showStatus('error', '❌ Network error'));
+        }
+
+        // ─── System Time Sync ─────────────────────────────────────────────
+
+        function updateCurrentTime() {
+            const now = new Date();
+            const timeStr = now.toUTCString().split(' ')[4];
+            document.getElementById('current-time').innerText = timeStr;
+        }
+
+        function loadTimeSyncLogs() {
+            fetch('/api/time_sync')
+                .then(r => r.json())
+                .then(data => {
+                    const logs = document.getElementById('time-sync-logs');
+                    if (!data.sync_logs || data.sync_logs.length === 0) {
+                        logs.innerHTML = '<div style="text-align: center; color: #888; padding: 20px; font-size: 0.9rem;">No sync history</div>';
+                        return;
+                    }
+                    logs.innerHTML = data.sync_logs.map(log => `
+                        <div style="background-color: #2a2a2a; padding: 8px; margin-bottom: 5px; border-radius: 3px; font-size: 0.85rem;">
+                            <div style="color: ${log.status === 'success' ? '#4CAF50' : '#f44336'};">
+                                ${log.source_type.toUpperCase()} - ${log.status} (${log.timestamp.split('T')[1].substring(0, 8)})
+                            </div>
+                        </div>
+                    `).join('');
+                })
+                .catch(err => console.error('Failed to load time sync logs:', err));
+        }
+
+        function syncNtp() {
+            if (!confirm('Synchronize system time via NTP?')) return;
+            
+            fetch('/api/time_sync', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ source_type: 'ntp' })
+            })
+            .then(r => r.json())
+            .then(data => {
+                showStatus(data.status === 'success' ? 'success' : 'error', 
+                    (data.status === 'success' ? '✅ ' : '❌ ') + data.message);
+                loadTimeSyncLogs();
+                updateCurrentTime();
+            })
+            .catch(err => showStatus('error', '❌ Network error'));
+        }
+
+        function showStatus(className, message) {
+            const msg = document.getElementById('status-msg');
+            msg.className = className;
+            msg.innerText = message;
+            msg.style.display = 'block';
+            setTimeout(() => { msg.style.display = 'none'; }, 4000);
+        }
+
         // Event Listeners
         document.getElementById('add-recipient-btn').addEventListener('click', addRecipient);
         document.getElementById('save-config-btn').addEventListener('click', saveAlertConfig);
         document.getElementById('reset-config-btn').addEventListener('click', resetToDefaults);
+        document.getElementById('filter-logs-btn').addEventListener('click', loadSmLogs);
+        document.getElementById('clear-logs-btn').addEventListener('click', deleteOldLogs);
+        document.getElementById('sync-ntp-btn').addEventListener('click', syncNtp);
+        document.getElementById('reset-templates-btn').addEventListener('click', () => {
+            if (confirm('Reset SMS templates to defaults?')) {
+                showStatus('success', '✅ Feature coming soon');
+            }
+        });
         
         // Allow Enter key to add recipient
         document.getElementById('new_phone').addEventListener('keypress', function(e) {

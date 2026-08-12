@@ -330,3 +330,157 @@ class SwineRepository:
                 "alert_population_enabled": True,
             }
             self.set_herd_risk_engine_config(defaults)
+
+    # ── SMS Message Templates ────────────────────────────────────────────────
+
+    def get_sms_templates(self, alert_type: str | None = None) -> list[dict]:
+        """Get all SMS templates, optionally filtered by alert type."""
+        with _conn(self._path) as con:
+            if alert_type:
+                query = "SELECT * FROM sms_templates WHERE alert_type = ? ORDER BY name"
+                rows = con.execute(query, (alert_type,)).fetchall()
+            else:
+                query = "SELECT * FROM sms_templates ORDER BY alert_type, name"
+                rows = con.execute(query).fetchall()
+            return [dict(row) for row in rows]
+
+    def create_sms_template(self, alert_type: str, name: str, message_body: str) -> int:
+        """Create a new SMS message template. Returns template ID."""
+        with _conn(self._path) as con:
+            cursor = con.execute(
+                """INSERT INTO sms_templates (alert_type, name, message_body, created_at, updated_at)
+                   VALUES (?,?,?,?,?)""",
+                (alert_type, name, message_body, _ts(), _ts()),
+            )
+            return cursor.lastrowid
+
+    def update_sms_template(self, template_id: int, message_body: str, enabled: bool | None = None) -> None:
+        """Update an SMS message template."""
+        with _conn(self._path) as con:
+            if enabled is not None:
+                con.execute(
+                    "UPDATE sms_templates SET message_body = ?, enabled = ?, updated_at = ? WHERE id = ?",
+                    (message_body, int(enabled), _ts(), template_id),
+                )
+            else:
+                con.execute(
+                    "UPDATE sms_templates SET message_body = ?, updated_at = ? WHERE id = ?",
+                    (message_body, _ts(), template_id),
+                )
+
+    def delete_sms_template(self, template_id: int) -> None:
+        """Delete an SMS message template."""
+        with _conn(self._path) as con:
+            con.execute("DELETE FROM sms_templates WHERE id = ?", (template_id,))
+
+    def get_default_sms_templates(self) -> dict:
+        """Return default SMS templates for initialization."""
+        return {
+            "individual": {
+                "name": "Individual Fever Alert",
+                "body": "ALERT: Pig showing fever symptoms. Zone temp: {zone_temp}°C, Duration: {duration} min",
+            },
+            "population": {
+                "name": "Population Lethargy Alert",
+                "body": "ALERT: Herd lethargy detected. {stationary_count}/{total_count} pigs stationary",
+            },
+        }
+
+    def initialize_default_sms_templates(self) -> None:
+        """Initialize SMS templates table with defaults if empty."""
+        templates = self.get_sms_templates()
+        if not templates:
+            defaults = self.get_default_sms_templates()
+            for alert_type, info in defaults.items():
+                self.create_sms_template(alert_type, info["name"], info["body"])
+
+    # ── SMS Message Logs ────────────────────────────────────────────────────
+
+    def create_sms_log(
+        self,
+        alert_type: str,
+        recipient_phone: str,
+        message_body: str,
+        status: str = "sent",
+        error_message: str | None = None,
+        pen_alert_id: int | None = None,
+    ) -> int:
+        """Log an SMS message send attempt. Returns log ID."""
+        with _conn(self._path) as con:
+            cursor = con.execute(
+                """INSERT INTO sms_logs (timestamp, alert_type, recipient_phone, message_body, status, error_message, pen_alert_id)
+                   VALUES (?,?,?,?,?,?,?)""",
+                (_ts(), alert_type, recipient_phone, message_body, status, error_message, pen_alert_id),
+            )
+            return cursor.lastrowid
+
+    def get_sms_logs(self, days_back: int = 7, alert_type: str | None = None) -> list[dict]:
+        """Get SMS logs from the last N days, optionally filtered by alert type."""
+        with _conn(self._path) as con:
+            if alert_type:
+                query = """SELECT * FROM sms_logs 
+                          WHERE datetime(timestamp) > datetime('now', ?) AND alert_type = ?
+                          ORDER BY timestamp DESC"""
+                rows = con.execute(query, (f"-{days_back} days", alert_type)).fetchall()
+            else:
+                query = """SELECT * FROM sms_logs 
+                          WHERE datetime(timestamp) > datetime('now', ?)
+                          ORDER BY timestamp DESC"""
+                rows = con.execute(query, (f"-{days_back} days",)).fetchall()
+            return [dict(row) for row in rows]
+
+    def get_sms_logs_by_date(self, date_str: str) -> list[dict]:
+        """Get SMS logs for a specific date (YYYY-MM-DD format)."""
+        with _conn(self._path) as con:
+            query = """SELECT * FROM sms_logs 
+                      WHERE DATE(timestamp) = ?
+                      ORDER BY timestamp DESC"""
+            rows = con.execute(query, (date_str,)).fetchall()
+            return [dict(row) for row in rows]
+
+    def delete_sms_logs_before(self, date_str: str) -> int:
+        """Delete SMS logs before a specific date. Returns number of rows deleted."""
+        with _conn(self._path) as con:
+            cursor = con.execute(
+                "DELETE FROM sms_logs WHERE DATE(timestamp) < ?",
+                (date_str,),
+            )
+            return cursor.rowcount
+
+    def get_sms_log_dates(self) -> list[str]:
+        """Get all unique dates that have SMS logs (YYYY-MM-DD format)."""
+        with _conn(self._path) as con:
+            rows = con.execute(
+                "SELECT DISTINCT DATE(timestamp) as date FROM sms_logs ORDER BY date DESC"
+            ).fetchall()
+            return [row["date"] for row in rows]
+
+    # ── System Time Sync ─────────────────────────────────────────────────────
+
+    def log_time_sync(
+        self,
+        source_type: str,
+        old_time: str,
+        new_time: str,
+        status: str = "success",
+        source_ip: str | None = None,
+        error_message: str | None = None,
+    ) -> int:
+        """Log a time synchronization event. Returns log ID."""
+        with _conn(self._path) as con:
+            cursor = con.execute(
+                """INSERT INTO time_sync_log (timestamp, source_type, source_ip, old_time, new_time, status)
+                   VALUES (?,?,?,?,?,?)""",
+                (_ts(), source_type, source_ip, old_time, new_time, status),
+            )
+            return cursor.lastrowid
+
+    def get_time_sync_logs(self, limit: int = 20) -> list[dict]:
+        """Get recent time sync log entries."""
+        with _conn(self._path) as con:
+            rows = con.execute(
+                "SELECT * FROM time_sync_log ORDER BY timestamp DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+            return [dict(row) for row in rows]
+

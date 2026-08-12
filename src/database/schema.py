@@ -73,6 +73,41 @@ CREATE TABLE IF NOT EXISTS alert_config (
     description TEXT,
     updated_at TEXT NOT NULL
 );
+
+-- SMS message templates (for customizing alert notifications)
+CREATE TABLE IF NOT EXISTS sms_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alert_type TEXT NOT NULL,          -- 'individual' | 'population'
+    name TEXT NOT NULL UNIQUE,         -- Template name (e.g., "Individual Fever Alert")
+    message_body TEXT NOT NULL,        -- Message template with {variables}
+    enabled INTEGER DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+-- SMS message send logs (history of all SMS alerts sent)
+CREATE TABLE IF NOT EXISTS sms_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    alert_type TEXT NOT NULL,         -- 'individual' | 'population'
+    recipient_phone TEXT NOT NULL,
+    message_body TEXT NOT NULL,
+    status TEXT DEFAULT 'sent',       -- 'sent' | 'failed' | 'pending'
+    error_message TEXT,
+    pen_alert_id INTEGER,             -- Reference to pen_alerts table
+    FOREIGN KEY(pen_alert_id) REFERENCES pen_alerts(id)
+);
+
+-- System time sync log (for tracking AP time synchronization)
+CREATE TABLE IF NOT EXISTS time_sync_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp TEXT NOT NULL,
+    source_type TEXT,                 -- 'manual' | 'ntp' | 'phone' | 'ap'
+    source_ip TEXT,
+    old_time TEXT,
+    new_time TEXT,
+    status TEXT DEFAULT 'success'    -- 'success' | 'failed'
+);
 """
 
 def initialize_database(db_path: str | Path) -> None:
