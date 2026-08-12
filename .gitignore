@@ -14,6 +14,8 @@ data/*.txt
 *.onnx
 *.engine
 models/
+!models/
+!models/best.onnx
 runs/
 
 # --- Database (runtime data) ---

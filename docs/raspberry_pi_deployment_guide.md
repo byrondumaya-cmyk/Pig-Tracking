@@ -46,9 +46,9 @@ i2cdetect -y 1
 
 You should see `0x69` in the scan output.
 
-## 4. Clone the repository to the Pi
+## 4. Clone the repository to the Pi (preferred over USB transfer)
 
-On the Pi, run:
+On the Pi, use Git to pull the repo directly. This is the preferred method instead of copying files by USB drive.
 
 ```bash
 cd ~
@@ -56,6 +56,10 @@ rm -rf Pig_Tracking
 git clone https://github.com/byrondumaya-cmyk/Pig-Tracking.git Pig_Tracking
 cd Pig_Tracking
 ```
+
+Note: `models/best.onnx` is now tracked in Git, so it should be present after a fresh clone or `git pull`.
+
+If the file is still missing after cloning, refresh the branch and retry the clone.
 
 ## 5. Create and activate the Python environment
 
@@ -202,6 +206,7 @@ From any device connected to the network, open the dashboard and confirm:
 - Use `models/best.onnx` on the Pi.
 - `best.pt` is for training and export only.
 - The Pi runtime uses ONNX Runtime and will not use `best.pt` for live inference.
+- The trained ONNX file is excluded from Git in this repository, so a fresh clone may not include it. Copy `models/best.onnx` manually if it is not present.
 
 ## 13. Optional: Automatic service start
 
