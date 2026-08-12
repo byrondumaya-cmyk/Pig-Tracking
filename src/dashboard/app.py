@@ -28,7 +28,7 @@ def create_app(cfg, repository=None) -> Flask:
     Returns:
         Configured Flask application.
     """
-    app = Flask(__name__, template_folder="templates")
+    app = Flask(__name__, template_folder="templates", static_folder="static")
 
     # Attach config and repo to app context so routes can access them
     app.config["SHM_CONFIG"] = cfg

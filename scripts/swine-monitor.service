@@ -1,0 +1,37 @@
+[Unit]
+Description=Swine Health Monitor — Offline AI Pig Health Monitoring System
+Documentation=file:///home/pi/Pig_Tracking/README.md
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/Pig_Tracking
+
+# Use the project venv. Adjust path if venv is named differently (.venv vs venv).
+ExecStart=/home/pi/Pig_Tracking/.venv/bin/python3 src/main.py
+
+# Graceful restart on non-zero exit (crash, unhandled exception)
+# Does NOT restart on clean exit (user stop) or SIGKILL
+Restart=on-failure
+RestartSec=10
+
+# Give the system (camera, I2C) time to settle on boot before starting
+StartLimitIntervalSec=120
+StartLimitBurst=5
+
+# Route all stdout/stderr through journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=swine-monitor
+
+# Environment — add any needed overrides here
+# Environment=PYTHONUNBUFFERED=1
+
+# Graceful shutdown: send SIGTERM, wait 15s, then SIGKILL
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target

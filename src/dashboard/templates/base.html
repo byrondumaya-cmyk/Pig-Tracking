@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <!-- Prevent scaling on mobile for app-like feel -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>{% block title %}Swine Monitor{% endblock %}</title>
+
+    <!-- Shared CSS Design System -->
+    <link rel="stylesheet" href="{{ url_for('dashboard.static', filename='css/base.css') }}">
+    <link rel="stylesheet" href="{{ url_for('dashboard.static', filename='css/layout.css') }}">
+    <link rel="stylesheet" href="{{ url_for('dashboard.static', filename='css/components.css') }}">
+    <link rel="stylesheet" href="{{ url_for('dashboard.static', filename='css/animations.css') }}">
+
+    <!-- Shared JS API Helpers -->
+    <script src="{{ url_for('dashboard.static', filename='js/api.js') }}" defer></script>
+    
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+    <!-- Top Navigation (Desktop) / Header (Mobile) -->
+    <header class="topnav">
+        <!-- Mobile hamburger -->
+        <button class="hamburger" id="nav-toggle" aria-label="Open menu" aria-expanded="false" aria-controls="mobile-drawer">
+            ☰
+        </button>
+
+        <div class="topnav__brand">
+            <span class="topnav__brand-icon">🐖</span>
+            Swine Monitor AI
+        </div>
+
+        <!-- Desktop system status strip -->
+        <div class="status-strip">
+            <div class="status-item" title="Camera Feed">
+                <div class="status-dot online" id="status-camera"></div> Camera
+            </div>
+            <div class="status-item" title="Thermal Sensor">
+                <div class="status-dot online" id="status-thermal"></div> Thermal
+            </div>
+            <div class="status-item" title="GSM Module">
+                <div class="status-dot" id="status-gsm"></div> GSM
+            </div>
+            <div class="status-item font-mono" id="status-uptime">
+                Uptime: --
+            </div>
+        </div>
+
+        <!-- Desktop actions -->
+        <nav class="topnav__actions">
+            {% block topnav_actions %}
+            <a href="{{ url_for('dashboard.settings') }}">⚙️ Settings</a>
+            {% endblock %}
+        </nav>
+    </header>
+
+    <!-- Mobile Navigation Drawer -->
+    <div class="drawer-overlay" id="drawer-overlay"></div>
+    <nav class="drawer" id="mobile-drawer" aria-hidden="true">
+        <div class="drawer__header">
+            <div class="topnav__brand">
+                <span class="topnav__brand-icon">🐖</span> Menu
+            </div>
+            <button class="drawer__close" id="drawer-close" aria-label="Close menu">✕</button>
+        </div>
+
+        <div class="drawer__nav">
+            <a href="{{ url_for('dashboard.index') }}">📊 Dashboard</a>
+            <a href="{{ url_for('dashboard.settings') }}">⚙️ Settings</a>
+        </div>
+
+        <!-- Mobile system status (shown only in drawer on small screens) -->
+        <div class="drawer__status">
+            <div class="status-item">
+                <div class="status-dot online" id="drawer-camera"></div> Camera
+            </div>
+            <div class="status-item">
+                <div class="status-dot online" id="drawer-thermal"></div> Thermal
+            </div>
+            <div class="status-item">
+                <div class="status-dot" id="drawer-gsm"></div> GSM
+            </div>
+            <div class="status-item text-subtle font-mono text-sm" id="drawer-uptime">
+                Up: --
+            </div>
+        </div>
+    </nav>
+
+    <!-- Global Alert Banner (Hidden by default) -->
+    <div id="global-alert-banner" class="alert-banner">
+        ⚠️ Attention required: There are unresolved health alerts. Please check the alert log.
+    </div>
+
+    <!-- Main Content -->
+    <main class="page">
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Shared UI Scripts -->
+    <script>
+        // Drawer toggle logic
+        document.addEventListener('DOMContentLoaded', () => {
+            const toggle = document.getElementById('nav-toggle');
+            const close = document.getElementById('drawer-close');
+            const drawer = document.getElementById('mobile-drawer');
+            const overlay = document.getElementById('drawer-overlay');
+
+            function openDrawer() {
+                drawer.classList.add('open');
+                overlay.classList.add('open');
+                drawer.setAttribute('aria-hidden', 'false');
+                toggle.setAttribute('aria-expanded', 'true');
+            }
+
+            function closeDrawer() {
+                drawer.classList.remove('open');
+                overlay.classList.remove('open');
+                drawer.setAttribute('aria-hidden', 'true');
+                toggle.setAttribute('aria-expanded', 'false');
+            }
+
+            toggle.addEventListener('click', openDrawer);
+            close.addEventListener('click', closeDrawer);
+            overlay.addEventListener('click', closeDrawer);
+            
+            // Poll for system status to update the green/red dots
+            setInterval(async () => {
+                try {
+                    const res = await fetch("{{ url_for('dashboard.get_system_status') }}");
+                    if (res.ok) {
+                        const status = await res.json();
+                        updateStatusDots(status);
+                    }
+                } catch (e) {
+                    // Fail silently on poll errors
+                }
+            }, 5000); // Check every 5 seconds
+        });
+
+        function updateStatusDots(status) {
+            const setDot = (idPrefix, isOnline) => {
+                const el1 = document.getElementById(`status-${idPrefix}`);
+                const el2 = document.getElementById(`drawer-${idPrefix}`);
+                [el1, el2].forEach(el => {
+                    if (el) {
+                        el.className = 'status-dot'; // reset
+                        el.classList.add(isOnline ? 'online' : 'offline');
+                    }
+                });
+            };
+
+            setDot('camera', status.camera === 'active');
+            setDot('thermal', status.thermal === 'active');
+            
+            // GSM can be 'active', 'offline', or 'disabled' (no hardware)
+            const gsmStatus = status.gsm;
+            ['status-gsm', 'drawer-gsm'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.className = 'status-dot';
+                    if (gsmStatus === 'active') el.classList.add('online');
+                    else if (gsmStatus === 'disabled' || gsmStatus === 'not_configured') el.classList.add('disabled');
+                    else el.classList.add('offline');
+                }
+            });
+
+            // Update uptime
+            ['status-uptime', 'drawer-uptime'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    el.textContent = id.includes('drawer') ? `Up: ${status.uptime_formatted}` : `Uptime: ${status.uptime_formatted}`;
+                }
+            });
+        }
+    </script>
+
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html>

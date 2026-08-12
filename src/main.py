@@ -201,15 +201,41 @@ class SwineHealthMonitor:
             fps=self.cfg.camera.fps,
         )
 
-        if not camera.start():
-            logger.error("Cannot start camera. Shutting down.")
-            self.shutdown()
-            return
+        # Retry camera start up to 3 times — allows the dashboard to stay up
+        # even if the camera is momentarily unavailable during boot.
+        camera_available = False
+        for attempt in range(1, 4):
+            if camera.start():
+                camera_available = True
+                break
+            logger.warning(
+                "Camera start attempt %d/3 failed. Retrying in 5 s...", attempt
+            )
+            time.sleep(5)
+
+        if not camera_available:
+            logger.error(
+                "Camera unavailable after 3 attempts. "
+                "Dashboard will run without live stream. Connect camera and restart."
+            )
+            # Keep the dashboard running so alerts + settings remain accessible.
+            # The inference/detection loop is skipped when camera_available is False.
 
         # Initialize pig counter for occupancy tracking
         self.pig_counter = PigCounter()
 
-        logger.info("Camera started (async mode). Target %d FPS. Ctrl+C to stop.", self.cfg.camera.fps)
+        if camera_available:
+            logger.info(
+                "Camera started (async mode). Target %d FPS. Ctrl+C to stop.",
+                self.cfg.camera.fps,
+            )
+        else:
+            # Park here — the dashboard thread is already running; just keep the
+            # service alive until the operator addresses the camera issue.
+            logger.info("Waiting for camera. Dashboard still accessible on port %d.", self.cfg.dashboard.port)
+            while self._running:
+                time.sleep(5)
+            return
 
         frame_count = 0
         fps_timer = time.time()
@@ -316,26 +342,34 @@ class SwineHealthMonitor:
             )
 
             # --- Persist detections ---
-            for pig in tracked_pigs:
-                self.repository.insert_detection(
-                    pig.track_id, pig.behavior, pig.confidence, pig.bbox,
-                    zone_temp_c=temperature_map.get(pig.track_id, 0.0),
-                )
+            try:
+                for pig in tracked_pigs:
+                    self.repository.insert_detection(
+                        pig.track_id, pig.behavior, pig.confidence, pig.bbox,
+                        zone_temp_c=temperature_map.get(pig.track_id, 0.0),
+                    )
+            except Exception as db_exc:
+                logger.warning("DB write failed (detections): %s", db_exc)
 
             # --- Handle alerts ---
             for alert in alerts:
-                alert_id = self.repository.insert_alert(
-                    alert_type=alert.alert_type.value,
-                    trigger_reason=alert.trigger_reason,
-                    ambient_temp_c=alert.ambient_temp_c,
-                    ambient_rh=alert.ambient_rh,
-                    ambient_thi=alert.ambient_thi,
-                    pig_zone_temp_c=alert.pig_zone_temp_c,
-                    stationary_duration_sec=alert.stationary_duration_sec,
-                    stationary_count=alert.stationary_count,
-                    total_pig_count=alert.total_pig_count,
-                )
-                if self.gsm:
+                try:
+                    alert_id = self.repository.insert_alert(
+                        alert_type=alert.alert_type.value,
+                        trigger_reason=alert.trigger_reason,
+                        ambient_temp_c=alert.ambient_temp_c,
+                        ambient_rh=alert.ambient_rh,
+                        ambient_thi=alert.ambient_thi,
+                        pig_zone_temp_c=alert.pig_zone_temp_c,
+                        stationary_duration_sec=alert.stationary_duration_sec,
+                        stationary_count=alert.stationary_count,
+                        total_pig_count=alert.total_pig_count,
+                    )
+                except Exception as db_exc:
+                    logger.warning("DB write failed (alert insert): %s", db_exc)
+                    alert_id = None
+
+                if self.gsm and alert_id is not None:
                     # Try to get recipients from repository, fall back to config
                     phone_numbers = None
                     try:
@@ -343,7 +377,7 @@ class SwineHealthMonitor:
                     except Exception:
                         # Repository lookup failed, use config as fallback
                         phone_numbers = self.cfg.gsm.phone_numbers if hasattr(self.cfg.gsm, 'phone_numbers') else []
-                    
+
                     if phone_numbers:
                         sent = self.gsm.send_alert(
                             phone_numbers=phone_numbers,
@@ -353,7 +387,10 @@ class SwineHealthMonitor:
                         if sent:
                             # Mark SMS dispatched — does NOT resolve the alert.
                             # Farmer must confirm inspection via dashboard.
-                            self.repository.mark_sms_sent(alert_id, phone_numbers)
+                            try:
+                                self.repository.mark_sms_sent(alert_id, phone_numbers)
+                            except Exception as db_exc:
+                                logger.warning("DB write failed (mark_sms_sent): %s", db_exc)
 
             # --- Update shared frame buffer for dashboard stream ---
             from src.dashboard.stream import FrameBuffer

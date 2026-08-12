@@ -1,212 +1,138 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Swine Health Monitor</title>
-    <style>
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #121212; color: #e0e0e0; margin: 0; padding: 20px; }
-        .header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #333; padding-bottom: 10px; margin-bottom: 20px; }
-        .header h1 { margin: 0; color: #4CAF50; }
-        .nav-links a { color: #fff; text-decoration: none; padding: 8px 16px; background-color: #333; border-radius: 4px; }
-        
-        .alert-banner { display: none; background-color: #d32f2f; color: white; padding: 15px; text-align: center; font-weight: bold; border-radius: 4px; margin-bottom: 20px; animation: pulse 2s infinite; }
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
+{% extends "base.html" %}
 
-        .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
-        .panel { background-color: #1e1e1e; padding: 15px; border-radius: 8px; border: 1px solid #333; }
-        .panel h2 { margin-top: 0; font-size: 1.2rem; border-bottom: 1px solid #333; padding-bottom: 10px; }
-        
-        .video-container { width: 100%; aspect-ratio: 4/3; background-color: #000; border-radius: 4px; display: flex; align-items: center; justify-content: center; }
-        #rgb-feed { max-width: 100%; max-height: 100%; }
-        #thermal-canvas { width: 100%; height: 100%; image-rendering: pixelated; }
+{% block title %}Dashboard | Swine Monitor{% endblock %}
 
-        .stats-row { display: flex; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
-        .stat-card { flex: 1; background-color: #1e1e1e; padding: 15px; border-radius: 8px; border: 1px solid #333; text-align: center; }
-        .stat-value { font-size: 1.5rem; font-weight: bold; color: #4CAF50; margin-top: 5px; }
-        .stat-card.danger .stat-value { color: #f44336; }
+{% block extra_head %}
+<!-- Defer dashboard JS to keep parsing fast -->
+<script src="{{ url_for('dashboard.static', filename='js/dashboard.js') }}" defer></script>
+{% endblock %}
 
-        .thermal-meta { display: flex; justify-content: space-between; gap: 12px; margin-top: 12px; font-size: 0.95rem; color: #ddd; }
-        .thermal-meta div { flex: 1; text-align: center; padding: 8px 0; border-radius: 6px; background: rgba(255,255,255,0.03); border: 1px solid #2a2a2a; }
+{% block content %}
 
-        .alert-log { background-color: #1e1e1e; padding: 15px; border-radius: 8px; border: 1px solid #333; max-height: 300px; overflow-y: auto; }
-        .log-item { display: flex; align-items: center; padding: 10px 0; border-bottom: 1px solid #333; }
-        .log-icon { font-size: 1.2rem; margin-right: 15px; }
-        .log-time { color: #888; font-family: monospace; margin-right: 15px; }
-        .log-msg { flex: 1; }
-        
-        /* Utility classes */
-        .text-red { color: #f44336; }
-        .text-yellow { color: #ffeb3b; }
-        .text-green { color: #4caf50; }
-    </style>
-</head>
-<body>
-
-    <div class="header">
-        <h1>Swine Health Monitor</h1>
-        <div class="nav-links">
-            <a href="/settings">⚙️ Settings</a>
-        </div>
+<!-- Mobile-only Stats Row (horizontally scrollable) -->
+<div class="stats-pills">
+    <div class="stat-pill">
+        <span class="stat-pill__label">Pigs:</span>
+        <span class="stat-pill__value" id="pill-pigs">--</span>
     </div>
-
-    <div id="active-alert" class="alert-banner">
-        ⚠️ ACTIVE ALERT: Unresolved health risk detected in pen! Check SMS Log.
+    <div class="stat-pill">
+        <span class="stat-pill__label">Temp:</span>
+        <span class="stat-pill__value" id="pill-temp">--°C</span>
     </div>
+    <div class="stat-pill">
+        <span class="stat-pill__label">THI:</span>
+        <span class="stat-pill__value" id="pill-thi">--</span>
+    </div>
+</div>
 
-    <div class="dashboard-grid">
-        <div class="panel">
-            <h2>RGB Live Feed (YOLO)</h2>
-            <div class="video-container">
-                <img id="rgb-feed" src="/video_feed" alt="RGB Feed"
-                     onerror="this.src='data:image/svg+xml;charset=utf-8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%22640%22 height=%22480%22><rect width=%22100%25%22 height=%22100%25%22 fill=%22%23111%22/><text x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-size=%2224%22 fill=%22%23555%22>Camera Offline</text></svg>'">
+<div class="dashboard-grid">
+    <!-- Main Column -->
+    <div class="main-column">
+        <!-- RGB Camera Feed -->
+        <section class="panel camera-panel">
+            <div class="panel__header">
+                <h2 class="panel__title">RGB Live Feed (YOLOv8)</h2>
             </div>
-        </div>
-        <div class="panel">
-            <h2>Thermal Heatmap (AMG8833)</h2>
-            <div class="video-container">
-                <canvas id="thermal-canvas" width="8" height="8"></canvas>
+            <div class="panel__body">
+                <div class="camera-feed">
+                    <img id="rgb-feed" src="{{ url_for('dashboard.video_feed') }}" alt="Camera Stream"
+                         onerror="this.src='data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22640%22 height=%22480%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 fill=%22%23161b22%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 dominant-baseline=%22middle%22 text-anchor=%22middle%22 font-family=%22sans-serif%22 font-size=%2216%22 fill=%22%236e7681%22%3ECamera Offline%3C/text%3E%3C/svg%3E'">
+                    
+                    <div class="camera-overlay">
+                        <div class="camera-badge">REC</div>
+                    </div>
+                </div>
             </div>
-            <div class="thermal-meta">
-                <div>Max: <span id="thermal-max">--°C</span></div>
-                <div>Avg: <span id="thermal-avg">--°C</span></div>
-                <div>Min: <span id="thermal-min">--°C</span></div>
+        </section>
+
+        <!-- Alert Log -->
+        <section class="panel alert-log-section">
+            <div class="panel__header">
+                <h2 class="panel__title">Live Alert Log</h2>
             </div>
-        </div>
+            <div class="alert-log" id="alert-log-container">
+                <div class="alert-empty skeleton-text skeleton">Loading alerts...</div>
+            </div>
+        </section>
     </div>
 
-    <div class="stats-row">
-        <div class="stat-card" id="ambient-card">
-            <div>Ambient Environment (DHT22)</div>
-            <div class="stat-value" id="ambient-val">--°C / --% RH</div>
-        </div>
-        <div class="stat-card" id="thi-card">
-            <div>Heat Stress (THI)</div>
-            <div class="stat-value" id="thi-val">--</div>
-        </div>
-        <div class="stat-card">
-            <div>Behaviors</div>
-            <div class="stat-value" id="behavior-val" style="font-size: 1rem; color: #e0e0e0;">Lying: 0 | Standing: 0 | Walking: 0 | Sitting: 0 | Total: 0</div>
-            <div style="font-size: 0.82rem; margin-top: 8px; color: #bbb;">Counts are for the current frame. Track IDs are temporary and may change if a pig leaves and returns.</div>
-        </div>
-        <div class="stat-card">
-            <div>GSM Status</div>
-            <div class="stat-value" style="color: #4CAF50;">● Ready</div>
-        </div>
-    </div>
-
-    <div class="alert-log">
-        <h2>📋 SMS Alert Log</h2>
-        <div id="log-container">
-            <!-- Populated via JS -->
-            <div class="log-item" style="color: #888; justify-content: center;">Waiting for alerts...</div>
-        </div>
-    </div>
-
-    <script>
-        // Thermal Canvas Rendering
-        const canvas = document.getElementById('thermal-canvas');
-        const ctx = canvas.getContext('2d');
-
-        function getColor(temp) {
-            // Very simple color mapping: 20C (blue) to 40C (red)
-            if(temp < 25) return 'blue';
-            if(temp < 30) return 'green';
-            if(temp < 35) return 'yellow';
-            if(temp < 38) return 'orange';
-            return 'red';
-        }
-
-        function fetchThermal() {
-            fetch('/api/thermal_feed')
-                .then(r => r.json())
-                .then(data => {
-                    if (!data.grid) {
-                        // Sensor offline or not yet available
-                        ctx.fillStyle = '#222';
-                        ctx.fillRect(0, 0, 8, 8);
-                        document.getElementById('thermal-max').innerText = '--°C';
-                        document.getElementById('thermal-avg').innerText = '--°C';
-                        document.getElementById('thermal-min').innerText = '--°C';
-                        return;
-                    }
-                    for(let i=0; i<8; i++) {
-                        for(let j=0; j<8; j++) {
-                            ctx.fillStyle = getColor(data.grid[i][j]);
-                            ctx.fillRect(j, i, 1, 1);
-                        }
-                    }
-                    document.getElementById('thermal-max').innerText = `${data.max_temp_c?.toFixed(1) ?? '--'}°C`;
-                    document.getElementById('thermal-avg').innerText = `${data.avg_temp_c?.toFixed(1) ?? '--'}°C`;
-                    document.getElementById('thermal-min').innerText = `${data.min_temp_c?.toFixed(1) ?? '--'}°C`;
-                }).catch(() => {});
-        }
-
-        function fetchAmbient() {
-            fetch('/api/ambient')
-                .then(r => r.json())
-                .then(data => {
-                    document.getElementById('ambient-val').innerText = `${data.temp_c}°C / ${data.humidity_pct}%`;
-                    document.getElementById('thi-val').innerText = data.thi.toFixed(1);
-                    if(data.thi > 78) {
-                        document.getElementById('thi-card').classList.add('danger');
-                    } else {
-                        document.getElementById('thi-card').classList.remove('danger');
-                    }
-                }).catch(() => {});
-        }
-
-        function fetchBehaviors() {
-            fetch('/api/behavior_counts')
-                .then(r => r.json())
-                .then(data => {
-                    document.getElementById('behavior-val').innerText = 
-                        `Lying: ${data.lying || 0} | Standing: ${data.standing || 0} | Walking: ${data.walking || 0} | Sitting: ${data.sitting || 0} | Total: ${data.total || 0}`;
-                }).catch(() => {});
-        }
-
-        function fetchAlerts() {
-            fetch('/api/pen_alerts')
-                .then(r => r.json())
-                .then(data => {
-                    const container = document.getElementById('log-container');
-                    const banner = document.getElementById('active-alert');
-                    
-                    if(!data.alerts || data.alerts.length === 0) return;
-                    
-                    container.innerHTML = '';
-                    let hasUnresolved = false;
-                    
-                    data.alerts.forEach(alert => {
-                        if(!alert.resolved) hasUnresolved = true;
-                        
-                        const icon = alert.resolved ? '✅' : (alert.alert_type === 'population' ? '🟡' : '🔴');
-                        const div = document.createElement('div');
-                        div.className = 'log-item';
-                        div.innerHTML = `
-                            <div class="log-icon">${icon}</div>
-                            <div class="log-time">${alert.timestamp}</div>
-                            <div class="log-msg">
-                                <strong>${alert.alert_type.toUpperCase()} ALERT:</strong> ${alert.message}
-                            </div>
-                        `;
-                        container.appendChild(div);
-                    });
-                    
-                    banner.style.display = hasUnresolved ? 'block' : 'none';
-                }).catch(() => {});
-        }
-
-        // Start polling loops
-        setInterval(fetchThermal, 200);   // Fast refresh for thermal
-        setInterval(fetchAmbient, 5000);  // 5s for ambient
-        setInterval(fetchBehaviors, 1000); // 1s for behaviors
-        setInterval(fetchAlerts, 5000);    // 5s for alerts
+    <!-- Side Column -->
+    <div class="side-panel">
         
-        // Initial fetch
-        fetchAmbient();
-        fetchBehaviors();
-        fetchAlerts();
-    </script>
-</body>
-</html>
+        <!-- Pig Count / Behaviors -->
+        <section class="stat-card">
+            <div class="stat-card__label">Occupancy</div>
+            <div class="stat-card__value skeleton skeleton-value" id="pig-count">--</div>
+            
+            <div class="behavior-chart" style="margin-top: var(--space-4);">
+                {% set behaviors = [
+                    ('lying', 'Lying', 'bar-lying'),
+                    ('standing', 'Standing', 'bar-standing'),
+                    ('walking', 'Walking', 'bar-walking'),
+                    ('sitting', 'Sitting', 'bar-sitting'),
+                    ('feeding', 'Feeding', 'bar-feeding'),
+                    ('drinking', 'Drinking', 'bar-drinking'),
+                    ('social', 'Social', 'bar-social'),
+                    ('aggression', 'Aggression', 'bar-aggression')
+                ] %}
+                
+                {% for key, label, color_class in behaviors %}
+                <div class="behavior-row">
+                    <div class="behavior-row__label">{{ label }}</div>
+                    <div class="behavior-row__bar-track">
+                        <div class="behavior-row__bar-fill {{ color_class }}" id="bar-{{ key }}"></div>
+                    </div>
+                    <div class="behavior-row__count" id="count-{{ key }}">0</div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Thermal Heatmap -->
+        <section class="panel">
+            <div class="panel__header">
+                <h2 class="panel__title">Thermal (AMG8833)</h2>
+            </div>
+            <div class="thermal-canvas-wrap">
+                <canvas id="thermal-canvas"></canvas>
+                <div class="thermal-meta">
+                    <div class="thermal-meta__item">
+                        <span class="thermal-meta__label">Max</span>
+                        <span class="thermal-meta__val skeleton skeleton-text" id="thermal-max">--°C</span>
+                    </div>
+                    <div class="thermal-meta__item">
+                        <span class="thermal-meta__label">Avg</span>
+                        <span class="thermal-meta__val skeleton skeleton-text" id="thermal-avg">--°C</span>
+                    </div>
+                    <div class="thermal-meta__item">
+                        <span class="thermal-meta__label">Min</span>
+                        <span class="thermal-meta__val skeleton skeleton-text" id="thermal-min">--°C</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Ambient Data -->
+        <section class="stat-card">
+            <div class="stat-card__label">Pen Environment</div>
+            <div class="ambient-row">
+                <div class="ambient-row__item">
+                    <span class="stat-card__value skeleton skeleton-value" id="ambient-temp">--°C</span>
+                    <span class="stat-card__sub">Temperature</span>
+                </div>
+                <div class="ambient-row__item">
+                    <span class="stat-card__value skeleton skeleton-value" id="ambient-rh">--%</span>
+                    <span class="stat-card__sub">Humidity</span>
+                </div>
+                <div class="ambient-row__item" style="margin-left: auto; align-items: flex-end;">
+                    <div class="thi-badge normal" id="thi-badge">
+                        THI <span id="thi-val">--</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+</div>
+
+{% endblock %}

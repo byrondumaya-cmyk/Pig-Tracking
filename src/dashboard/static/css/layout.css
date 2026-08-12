@@ -1,0 +1,308 @@
+/* =============================================================================
+   layout.css — Page Structure, Navigation, Responsive Breakpoints
+   Swine Health Monitor Dashboard
+   ============================================================================= */
+
+/* ── Top Navigation Bar ───────────────────────────────────────────────────── */
+.topnav {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-nav);
+  background-color: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: var(--space-3) var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.topnav__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.topnav__brand-icon {
+  font-size: 1.4rem;
+}
+
+/* System status strip (desktop) */
+.status-strip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
+
+.status-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  background-color: var(--status-offline);
+  flex-shrink: 0;
+}
+.status-dot.online  { background-color: var(--green); }
+.status-dot.offline { background-color: var(--red); }
+.status-dot.disabled{ background-color: var(--text-subtle); }
+
+/* Hamburger button (mobile only) */
+.hamburger {
+  display: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--text-xl);
+  line-height: 1;
+}
+
+/* Settings link (desktop) */
+.topnav__actions a {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  transition: color 0.15s, border-color 0.15s, background-color 0.15s;
+}
+.topnav__actions a:hover {
+  color: var(--text-primary);
+  border-color: var(--blue);
+  background-color: var(--bg-elevated);
+  text-decoration: none;
+}
+
+/* ── Mobile Drawer Nav ────────────────────────────────────────────────────── */
+.drawer-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: calc(var(--z-drawer) - 1);
+}
+.drawer-overlay.open { display: block; }
+
+.drawer {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 280px;
+  background-color: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  z-index: var(--z-drawer);
+  padding: var(--space-5);
+  transform: translateX(-100%);
+  will-change: transform;
+}
+.drawer.open { transform: translateX(0); }
+
+.drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.drawer__close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: var(--text-xl);
+  cursor: pointer;
+  padding: var(--space-1);
+}
+
+.drawer__nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.drawer__nav a {
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+  font-size: var(--text-base);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.drawer__nav a:hover {
+  background-color: var(--bg-elevated);
+  text-decoration: none;
+}
+
+.drawer__status {
+  margin-top: var(--space-8);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Alert Banner ─────────────────────────────────────────────────────────── */
+.alert-banner {
+  display: none;
+  background: linear-gradient(135deg, #7f1d1d, #991b1b);
+  border-bottom: 2px solid var(--red);
+  color: white;
+  padding: var(--space-3) var(--space-5);
+  text-align: center;
+  font-weight: 600;
+  font-size: var(--text-sm);
+  letter-spacing: 0.025em;
+}
+.alert-banner.visible { display: block; }
+
+/* ── Page Wrapper ─────────────────────────────────────────────────────────── */
+.page {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: var(--space-5);
+}
+
+/* ── Dashboard Main Grid ──────────────────────────────────────────────────── */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: var(--space-5);
+  margin-bottom: var(--space-5);
+}
+
+/* Side panel stacks its children */
+.side-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ── Stats Pills Row (mobile) ─────────────────────────────────────────────── */
+.stats-pills {
+  display: none; /* shown only on mobile */
+  flex-direction: row;
+  gap: var(--space-3);
+  overflow-x: auto;
+  padding-bottom: var(--space-2);
+  scrollbar-width: none;
+}
+.stats-pills::-webkit-scrollbar { display: none; }
+
+.stat-pill {
+  flex-shrink: 0;
+  background-color: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-full);
+  padding: var(--space-2) var(--space-4);
+  font-size: var(--text-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+}
+
+.stat-pill__label { color: var(--text-muted); }
+.stat-pill__value { font-weight: 600; }
+
+/* ── Alert Log ────────────────────────────────────────────────────────────── */
+.alert-log-section {
+  margin-top: var(--space-2);
+}
+
+/* ── Settings Layout ──────────────────────────────────────────────────────── */
+.settings-page {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.tab-bar {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: var(--space-6);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tab-bar::-webkit-scrollbar { display: none; }
+
+.tab-btn {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  padding: var(--space-3) var(--space-4);
+  white-space: nowrap;
+  margin-bottom: -1px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.tab-btn:hover { color: var(--text-primary); }
+.tab-btn.active {
+  color: var(--green);
+  border-bottom-color: var(--green);
+}
+
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+/* ── Responsive Breakpoints ───────────────────────────────────────────────── */
+
+/* Tablet (768–1023px): 2-column, collapsed side panel */
+@media (max-width: 1023px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .status-strip {
+    display: none; /* moves into drawer */
+  }
+}
+
+/* Mobile (< 768px): single column, drawer nav */
+@media (max-width: 767px) {
+  .topnav {
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .hamburger { display: block; }
+  .topnav__actions { display: none; }
+  .status-strip { display: none; }
+
+  .page { padding: var(--space-3); }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .side-panel {
+    /* On mobile the side panel children are reordered in HTML to:
+       1. Behavior pills row
+       2. Thermal (collapsed)
+       3. Ambient
+       Side panel flex-direction stays column */
+  }
+
+  .stats-pills { display: flex; }
+
+  /* Reduce heading sizes on mobile */
+  .panel__title { font-size: var(--text-base); }
+}

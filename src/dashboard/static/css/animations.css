@@ -1,0 +1,142 @@
+/* =============================================================================
+   animations.css — Transitions, Keyframes, Motion Preferences
+   Swine Health Monitor Dashboard
+
+   RULES:
+   - All animations are CSS-only (no JS rAF loops for visual effects)
+   - Never animate properties that trigger layout (width, height, top, left)
+     for frequent updates — use transform/opacity
+   - All @keyframes blocks must have a prefers-reduced-motion override
+   ============================================================================= */
+
+/* ── Alert Banner ─────────────────────────────────────────────────────────── */
+@keyframes alert-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.75; }
+}
+
+.alert-banner.visible {
+  animation: alert-pulse 2.5s ease-in-out infinite;
+}
+
+/* Slide in from top when shown */
+@keyframes slide-down {
+  from { transform: translateY(-100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+.alert-banner.animate-in {
+  animation: slide-down 0.3s ease-out forwards, alert-pulse 2.5s ease-in-out 0.3s infinite;
+}
+
+/* ── Status Dot (online pulse) ────────────────────────────────────────────── */
+@keyframes dot-pulse {
+  0%   { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0.5); }
+  70%  { box-shadow: 0 0 0 5px rgba(63, 185, 80, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(63, 185, 80, 0); }
+}
+
+.status-dot.online {
+  animation: dot-pulse 2s ease-out infinite;
+}
+
+/* ── Mobile Drawer ────────────────────────────────────────────────────────── */
+.drawer {
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.drawer-overlay {
+  transition: opacity 0.25s ease;
+}
+.drawer-overlay:not(.open) { opacity: 0; pointer-events: none; }
+.drawer-overlay.open       { opacity: 1; }
+
+/* ── Tab Panel Transitions ────────────────────────────────────────────────── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.tab-panel.active {
+  animation: fade-in 0.2s ease-out forwards;
+}
+
+/* ── Confirm Modal ────────────────────────────────────────────────────────── */
+@keyframes modal-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.modal-backdrop.open .modal {
+  animation: modal-in 0.2s ease-out forwards;
+}
+
+/* ── Skeleton Shimmer ─────────────────────────────────────────────────────── */
+@keyframes skeleton-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton {
+  animation: skeleton-shimmer 1.8s linear infinite;
+}
+
+/* ── Alert Row Resolve (fade out) ────────────────────────────────────────── */
+@keyframes fade-out {
+  from { opacity: 1; max-height: 100px; }
+  to   { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; }
+}
+
+.alert-row.resolving {
+  animation: fade-out 0.3s ease-in forwards;
+  overflow: hidden;
+}
+
+/* ── Behavior Bar Widths ──────────────────────────────────────────────────── */
+/* JS updates inline style width; CSS handles the smooth interpolation */
+.behavior-row__bar-fill {
+  transition: width 0.5s ease-out;
+}
+
+/* ── Stat Value Flash (data update) ──────────────────────────────────────── */
+@keyframes value-flash {
+  0%   { color: var(--teal); }
+  100% { color: inherit; }
+}
+
+.flash {
+  animation: value-flash 0.6s ease-out forwards;
+}
+
+/* ── Button Active Press ──────────────────────────────────────────────────── */
+.btn {
+  transition: filter 0.15s, transform 0.1s;
+}
+/* :active transform is in components.css */
+
+/* ── prefers-reduced-motion — disable all non-essential animations ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  /* Keep the status dot visible but without the pulse */
+  .status-dot.online {
+    animation: none;
+    box-shadow: 0 0 0 2px rgba(63, 185, 80, 0.4);
+  }
+
+  /* Keep behavior bars responsive to data but instant */
+  .behavior-row__bar-fill {
+    transition: none;
+  }
+
+  /* Drawer still moves but instantly */
+  .drawer {
+    transition: none;
+  }
+}

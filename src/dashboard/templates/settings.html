@@ -1,799 +1,201 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings | Swine Health Monitor</title>
-    <style>
-        body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
-            background-color: #121212; 
-            color: #e0e0e0; 
-            margin: 0; 
-            padding: 20px; 
-        }
-        .header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            border-bottom: 1px solid #333; 
-            padding-bottom: 10px; 
-            margin-bottom: 20px; 
-        }
-        .header h1 { 
-            margin: 0; 
-            color: #4CAF50; 
-        }
-        .nav-links a { 
-            color: #fff; 
-            text-decoration: none; 
-            padding: 8px 16px; 
-            background-color: #333; 
-            border-radius: 4px; 
-        }
-        
-        .settings-container { 
-            max-width: 800px; 
-            margin: 0 auto; 
-            background-color: #1e1e1e; 
-            padding: 20px; 
-            border-radius: 8px; 
-            border: 1px solid #333; 
-        }
-        
-        .section {
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #333;
-        }
-        
-        .section:last-child {
-            border-bottom: none;
-        }
-        
-        .section-title {
-            color: #4CAF50; 
-            font-size: 1.3rem;
-            font-weight: bold;
-            border-bottom: 2px solid #4CAF50;
-            padding-bottom: 8px;
-            margin-bottom: 15px;
-        }
-        
-        .form-group { 
-            margin-bottom: 15px; 
-        }
-        
-        .form-group label { 
-            display: block; 
-            margin-bottom: 5px; 
-            font-weight: bold; 
-            color: #aaa; 
-        }
-        
-        .form-group input[type="text"], 
-        .form-group input[type="number"],
-        .form-group input[type="checkbox"] { 
-            padding: 8px; 
-            background-color: #2a2a2a; 
-            border: 1px solid #444; 
-            color: #fff; 
-            border-radius: 4px; 
-        }
-        
-        .form-group input[type="text"],
-        .form-group input[type="number"] {
-            width: 100%;
-            box-sizing: border-box;
-        }
-        
-        .form-group input[type="checkbox"] {
-            width: auto;
-            cursor: pointer;
-            margin-right: 8px;
-        }
-        
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .help-text { 
-            font-size: 0.85rem; 
-            color: #888; 
-            margin-top: 5px; 
-        }
-        
-        .info-box {
-            background-color: #1a3a3a;
-            border-left: 3px solid #00bcd4;
-            padding: 10px 15px;
-            border-radius: 4px;
-            margin-bottom: 15px;
-            font-size: 0.9rem;
-        }
+{% extends "base.html" %}
 
-        .btn { 
-            background-color: #4CAF50; 
-            color: white; 
-            padding: 12px 20px; 
-            border: none; 
-            border-radius: 4px; 
-            cursor: pointer; 
-            font-size: 1rem; 
-            font-weight: bold;
-        }
-        
-        .btn:hover { 
-            background-color: #45a049; 
-        }
-        
-        .btn-secondary {
-            background-color: #2196F3;
-        }
-        
-        .btn-secondary:hover {
-            background-color: #0b7dda;
-        }
-        
-        .btn-full {
-            width: 100%;
-        }
+{% block title %}Settings | Swine Monitor{% endblock %}
 
-        #status-msg { 
-            display: none; 
-            padding: 12px; 
-            margin-top: 15px; 
-            border-radius: 4px; 
-            text-align: center; 
-            font-weight: bold;
-        }
-        
-        .success { 
-            background-color: #1b5e20; 
-            color: #a5d6a7; 
-            border: 1px solid #4CAF50;
-        }
-        
-        .error { 
-            background-color: #b71c1c; 
-            color: #ffcdd2;
-            border: 1px solid #f44336;
-        }
-        
-        .recipient-item {
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-            padding: 10px; 
-            background-color: #2a2a2a;
-            margin-bottom: 8px;
-            border-radius: 4px;
-            border-left: 3px solid #4CAF50;
-        }
-        
-        .recipient-info {
-            flex: 1;
-        }
-        
-        .recipient-phone {
-            font-weight: bold;
-            font-size: 1rem;
-        }
-        
-        .recipient-status {
-            font-size: 0.85rem;
-            margin-top: 3px;
-        }
-        
-        .recipient-status.enabled {
-            color: #4CAF50;
-        }
-        
-        .recipient-status.disabled {
-            color: #f44336;
-        }
-        
-        .recipient-actions {
-            display: flex; 
-            gap: 8px;
-        }
-        
-        .btn-small {
-            padding: 5px 12px;
-            font-size: 0.85rem;
-            width: auto;
-        }
-        
-        .btn-toggle {
-            background-color: #ff9800;
-        }
-        
-        .btn-toggle:hover {
-            background-color: #e68900;
-        }
-        
-        .btn-remove {
-            background-color: #f44336;
-        }
-        
-        .btn-remove:hover {
-            background-color: #da190b;
-        }
-        
-        .recipients-empty {
-            text-align: center; 
-            color: #888; 
-            padding: 20px;
-            background-color: #2a2a2a;
-            border-radius: 4px;
-        }
-        
-        .add-recipient-row {
-            display: flex; 
-            gap: 10px;
-            margin-top: 10px;
-        }
-        
-        .add-recipient-row input {
-            flex: 1;
-        }
-        
-        .add-recipient-row button {
-            flex: 0 0 auto;
-            width: auto;
-        }
-        
-        .config-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-bottom: 15px;
-        }
-        
-        @media (max-width: 600px) {
-            .config-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
-</head>
-<body>
+{% block extra_head %}
+<script src="{{ url_for('dashboard.static', filename='js/settings.js') }}" defer></script>
+{% endblock %}
 
-    <div class="header">
-        <h1>⚙️ System Settings</h1>
-        <div class="nav-links">
-            <a href="/">← Back to Dashboard</a>
+{% block topnav_actions %}
+<a href="{{ url_for('dashboard.index') }}">← Back to Dashboard</a>
+{% endblock %}
+
+{% block content %}
+<div class="settings-page">
+    
+    <div class="section-header">
+        <h2>System Settings</h2>
+        <p>Configure offline AI alerts, SMS recipients, and device settings.</p>
+    </div>
+
+    <!-- Tab Navigation -->
+    <div class="tab-bar">
+        <button class="tab-btn active" data-target="tab-alerts">Alert Rules</button>
+        <button class="tab-btn" data-target="tab-contacts">Contacts</button>
+        <button class="tab-btn" data-target="tab-messages">Messages</button>
+        <button class="tab-btn" data-target="tab-system">System</button>
+        <button class="tab-btn" data-target="tab-logs">Logs</button>
+    </div>
+
+    <!-- TAB: Alerts -->
+    <div id="tab-alerts" class="tab-panel active">
+        
+        <div class="panel" style="margin-bottom: var(--space-5);">
+            <div class="panel__header">
+                <h3 class="panel__title">Individual Pig Detection</h3>
+            </div>
+            <div class="panel__body">
+                <div class="form-group toggle-wrap">
+                    <label class="toggle">
+                        <input type="checkbox" id="alert_individual_enabled">
+                        <div class="toggle__track"></div>
+                    </label>
+                    <label style="margin:0; font-weight: 600; color: var(--text-primary);">Enable Individual Alerts</label>
+                </div>
+                
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label>Stationary Alert Timer (Min)</label>
+                        <input type="number" id="stationary_alert_minutes" class="form-control" min="5" max="120">
+                        <div class="form-help">Time a pig must be down before alert</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Heat Stress Extended Timer (Min)</label>
+                        <input type="number" id="stationary_heat_stress_minutes" class="form-control" min="10" max="120">
+                        <div class="form-help">Timer used when barn is hot</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Fever Temp Delta (°C)</label>
+                        <input type="number" id="fever_delta_threshold_c" class="form-control" step="0.1" min="0" max="5">
+                        <div class="form-help">Alert if pig zone > (ambient + delta)</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Heat Stress THI Threshold</label>
+                        <input type="number" id="thi_heat_stress_threshold" class="form-control" step="1">
+                        <div class="form-help">THI level triggering heat stress mode</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-bottom: var(--space-5);">
+            <div class="panel__header">
+                <h3 class="panel__title">Population Lethargy</h3>
+            </div>
+            <div class="panel__body">
+                <div class="form-group toggle-wrap">
+                    <label class="toggle">
+                        <input type="checkbox" id="alert_population_enabled">
+                        <div class="toggle__track"></div>
+                    </label>
+                    <label style="margin:0; font-weight: 600; color: var(--text-primary);">Enable Population Alerts</label>
+                </div>
+                
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label>Lethargy Ratio (0.0 - 1.0)</label>
+                        <input type="number" id="population_lethargy_ratio" class="form-control" step="0.05" min="0.1" max="1.0">
+                        <div class="form-help">Fraction of herd stationary (e.g. 0.6 = 60%)</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Persistence Duration (Sec)</label>
+                        <input type="number" id="population_persist_seconds" class="form-control" min="1">
+                        <div class="form-help">How long lethargy must persist</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-bottom: var(--space-5);">
+            <div class="panel__header">
+                <h3 class="panel__title">Deduplication</h3>
+            </div>
+            <div class="panel__body">
+                <div class="form-group">
+                    <label>Alert Cooldown (Min)</label>
+                    <input type="number" id="cooldown_minutes" class="form-control" min="1" max="120" style="max-width: 200px;">
+                    <div class="form-help">Minimum gap between sending SMS alerts of the same type</div>
+                </div>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: var(--space-3); margin-top: var(--space-5);">
+            <button class="btn btn-primary" id="save-alerts-btn">💾 Save Alert Settings</button>
+            <button class="btn btn-ghost" id="reset-alerts-btn">Reset Defaults</button>
+        </div>
+        
+    </div>
+
+    <!-- TAB: Contacts -->
+    <div id="tab-contacts" class="tab-panel">
+        <div class="info-box">
+            Manage who receives SMS alerts. Recipients can be temporarily disabled without deleting them.
+        </div>
+        
+        <div class="panel">
+            <div class="panel__body">
+                <div class="form-group">
+                    <label>Add New Phone Number</label>
+                    <div class="add-row">
+                        <input type="text" id="new-phone-input" class="form-control" placeholder="+63XXXXXXXXXX">
+                        <button class="btn btn-primary" id="add-recipient-btn">Add</button>
+                    </div>
+                    <div class="form-help">Include country code (e.g., +63 for PH, +1 for US).</div>
+                </div>
+            </div>
+        </div>
+
+        <div id="recipients-list" style="margin-top: var(--space-5);">
+            <!-- Populated by JS -->
+            <div class="skeleton skeleton-text"></div>
         </div>
     </div>
 
-    <div class="settings-container">
-        <div id="status-msg"></div>
-        
-        <!-- SECTION 1: GSM SMS Alert Recipients -->
-        <div class="section">
-            <div class="section-title">📱 GSM SMS Alert Recipients</div>
-            
-            <div class="info-box">
-                ℹ️ Manage who receives SMS alerts. Recipients can be enabled/disabled without removing them.
-            </div>
-            
-            <div id="recipients-list" style="margin-bottom: 15px;">
-                <div class="recipients-empty">Loading recipients...</div>
-            </div>
-            
-            <div class="add-recipient-row">
-                <input type="text" id="new_phone" placeholder="+63XXXXXXXXXX" />
-                <button type="button" id="add-recipient-btn" class="btn btn-secondary btn-small">+ Add Recipient</button>
-            </div>
-            <div class="help-text">Enter phone number with country code (e.g., +63 for Philippines)</div>
+    <!-- TAB: Messages -->
+    <div id="tab-messages" class="tab-panel">
+        <div class="info-box">
+            Customize SMS templates. Variables like {zone_temp} or {duration} will be replaced with real data.
         </div>
         
-        <!-- SECTION 2: Individual Pig Alerts -->
-        <div class="section">
-            <div class="section-title">🐷 Individual Pig Fever Detection</div>
-            
-            <div class="info-box">
-                ℹ️ Configure thresholds for detecting sick pigs (stationary + fever symptoms)
-            </div>
-            
-            <div class="checkbox-group" style="margin-bottom: 15px;">
-                <input type="checkbox" id="alert_individual_enabled" checked />
-                <label for="alert_individual_enabled" style="margin: 0; font-weight: bold;">Enable Individual Pig Alerts</label>
-            </div>
-            
-            <div class="config-grid">
-                <div class="form-group">
-                    <label>Stationary Alert Timer (Minutes)</label>
-                    <input type="number" id="stationary_alert_minutes" min="5" max="120" step="1" value="15" />
-                    <div class="help-text">Time a pig must be lying/sitting before triggering alert</div>
-                </div>
-                
-                <div class="form-group">
-                    <label>Heat Stress Extended Timer (Minutes)</label>
-                    <input type="number" id="stationary_heat_stress_minutes" min="10" max="120" step="1" value="30" />
-                    <div class="help-text">Extended timer when barn THI > threshold (hot conditions)</div>
-                </div>
-                
-                <div class="form-group">
-                    <label>Fever Temperature Delta (°C)</label>
-                    <input type="number" id="fever_delta_threshold_c" min="0" max="5" step="0.1" value="2.0" />
-                    <div class="help-text">Alert if thermal zone > (ambient + this value)</div>
-                </div>
-                
-                <div class="form-group">
-                    <label>Heat Stress Threshold (THI)</label>
-                    <input type="number" id="thi_heat_stress_threshold" min="60" max="90" step="1" value="78.0" />
-                    <div class="help-text">Temperature Humidity Index threshold for heat stress condition</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- SECTION 3: Population Lethargy Alerts -->
-        <div class="section">
-            <div class="section-title">🐄 Population Lethargy Detection</div>
-            
-            <div class="info-box">
-                ℹ️ Configure thresholds for herd-wide health events (many pigs down at once)
-            </div>
-            
-            <div class="checkbox-group" style="margin-bottom: 15px;">
-                <input type="checkbox" id="alert_population_enabled" checked />
-                <label for="alert_population_enabled" style="margin: 0; font-weight: bold;">Enable Population Alerts</label>
-            </div>
-            
-            <div class="config-grid">
-                <div class="form-group">
-                    <label>Lethargy Ratio (0.0 - 1.0)</label>
-                    <input type="number" id="population_lethargy_ratio" min="0.1" max="1.0" step="0.05" value="0.60" />
-                    <div class="help-text">Fraction of herd stationary to trigger alert (e.g., 0.60 = 60%)</div>
-                </div>
-                
-                <div class="form-group">
-                    <label>Persistence Duration (Seconds)</label>
-                    <input type="number" id="population_persist_seconds" min="1" max="10" step="1" value="3" />
-                    <div class="help-text">How long lethargy condition must persist before alert</div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- SECTION 4: Alert Deduplication -->
-        <div class="section">
-            <div class="section-title">⏱️ Alert Deduplication</div>
-            
-            <div class="info-box">
-                ℹ️ Prevent SMS spam by enforcing minimum gap between repeated alerts
-            </div>
-            
-            <div class="form-group">
-                <label>Alert Cooldown (Minutes)</label>
-                <input type="number" id="cooldown_minutes" min="1" max="120" step="1" value="5" />
-                <div class="help-text">Minimum gap between sending SMS alerts of the same type</div>
-            </div>
-        </div>
-        
-        <!-- SECTION 6: SMS Message Templates -->
-        <div class="section">
-            <div class="section-title">📧 SMS Message Templates</div>
-            
-            <div class="info-box">
-                ℹ️ Customize the text of SMS alerts. Use variables like {zone_temp}, {duration}, {stationary_count}
-            </div>
-            
-            <div id="templates-list" style="margin-bottom: 15px;">
-                <div style="text-align: center; color: #888; padding: 20px;">Loading templates...</div>
-            </div>
-            
-            <button type="button" id="reset-templates-btn" class="btn btn-secondary">🔄 Reset Templates to Default</button>
-        </div>
-        
-        <!-- SECTION 7: SMS Message Logs -->
-        <div class="section">
-            <div class="section-title">📋 SMS Message Logs</div>
-            
-            <div class="info-box">
-                ℹ️ View SMS alert history. Select a date to filter logs, or delete old entries.
-            </div>
-            
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <input type="date" id="log-date-picker" />
-                <button type="button" id="filter-logs-btn" class="btn btn-secondary" style="width: auto;">🔍 Filter</button>
-                <button type="button" id="clear-logs-btn" class="btn btn-remove" style="width: auto;">🗑️ Delete Old</button>
-            </div>
-            
-            <div id="sms-logs-list" style="max-height: 400px; overflow-y: auto;">
-                <div style="text-align: center; color: #888; padding: 20px;">No logs to display</div>
-            </div>
-        </div>
-        
-        <!-- SECTION 8: System Time Sync -->
-        <div class="section">
-            <div class="section-title">🕐 System Time Synchronization</div>
-            
-            <div class="info-box">
-                ℹ️ Synchronize system time via NTP or manual entry. Keep accurate time for logs and alerts.
-            </div>
-            
-            <div class="form-group">
-                <label>Current System Time</label>
-                <div id="current-time" style="padding: 10px; background-color: #2a2a2a; border-radius: 4px; font-weight: bold;">--:--:--</div>
-            </div>
-            
-            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
-                <button type="button" id="sync-ntp-btn" class="btn btn-secondary">🌐 Sync via NTP</button>
-                <button type="button" id="sync-manual-btn" class="btn btn-secondary">✏️ Set Manual Time</button>
-            </div>
-            
-            <div id="time-sync-logs" style="max-height: 300px; overflow-y: auto; margin-top: 10px;">
-                <div style="text-align: center; color: #888; padding: 20px; font-size: 0.9rem;">No sync history</div>
-            </div>
-        </div>
-        
-        <!-- SECTION 9: Action Buttons -->
-        <div class="section" style="border-bottom: none;">
-            <button type="button" id="save-config-btn" class="btn btn-full">💾 Save All Settings</button>
-            <button type="button" id="reset-config-btn" class="btn btn-secondary btn-full" style="margin-top: 10px;">↻ Reset to Defaults</button>
-            <div class="help-text" style="margin-top: 10px; text-align: center;">Changes take effect immediately. No restart required.</div>
+        <div id="templates-list">
+            <!-- Populated by JS -->
+            <div class="skeleton skeleton-text"></div>
         </div>
     </div>
 
-    <script>
-        // Load on page load
-        document.addEventListener('DOMContentLoaded', function() {
-            loadRecipients();
-            loadAlertConfig();
-            loadSmsTemplates();
-            loadSmLogs();
-            updateCurrentTime();
-            loadTimeSyncLogs();
-            // Update time every second
-            setInterval(updateCurrentTime, 1000);
-        });
+    <!-- TAB: System -->
+    <div id="tab-system" class="tab-panel">
+        <div class="panel">
+            <div class="panel__header">
+                <h3 class="panel__title">Time Synchronization</h3>
+            </div>
+            <div class="panel__body">
+                <div class="form-group">
+                    <label>Current System Time</label>
+                    <div class="font-mono text-lg" id="current-time">--:--:--</div>
+                </div>
+                
+                <div style="display: flex; gap: var(--space-3);">
+                    <button class="btn btn-ghost" id="sync-ntp-btn">🌐 Sync via NTP</button>
+                </div>
 
-        // ─── Recipients Management ──────────────────────────────────────────
+                <div class="form-help" style="margin-top: var(--space-5);">Recent Syncs:</div>
+                <div id="time-sync-logs" style="margin-top: var(--space-2); max-height: 150px; overflow-y: auto;">
+                    <div class="skeleton skeleton-text"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        function loadRecipients() {
-            fetch('/api/recipients')
-                .then(r => r.json())
-                .then(data => {
-                    const list = document.getElementById('recipients-list');
-                    if (!data.recipients || data.recipients.length === 0) {
-                        list.innerHTML = '<div class="recipients-empty">No recipients configured. Add one to enable SMS alerts.</div>';
-                        return;
-                    }
-                    list.innerHTML = data.recipients.map(r => `
-                        <div class="recipient-item">
-                            <div class="recipient-info">
-                                <div class="recipient-phone">${r.phone_number}</div>
-                                <div class="recipient-status ${r.enabled ? 'enabled' : 'disabled'}">
-                                    ${r.enabled ? '✓ Active' : '✗ Disabled'}
-                                </div>
-                            </div>
-                            <div class="recipient-actions">
-                                <button type="button" class="btn btn-small btn-toggle toggle-recipient-btn" data-id="${r.id}" data-enabled="${r.enabled}">
-                                    ${r.enabled ? 'Disable' : 'Enable'}
-                                </button>
-                                <button type="button" class="btn btn-small btn-remove remove-recipient-btn" data-id="${r.id}">Remove</button>
-                            </div>
-                        </div>
-                    `).join('');
-                    
-                    document.querySelectorAll('.remove-recipient-btn').forEach(btn => {
-                        btn.addEventListener('click', removeRecipient);
-                    });
-                    document.querySelectorAll('.toggle-recipient-btn').forEach(btn => {
-                        btn.addEventListener('click', toggleRecipient);
-                    });
-                });
-        }
+    <!-- TAB: Logs -->
+    <div id="tab-logs" class="tab-panel">
+        <div class="panel">
+            <div class="panel__header">
+                <h3 class="panel__title">SMS Dispatch History</h3>
+            </div>
+            <div class="panel__body">
+                <div style="display: flex; gap: var(--space-3); margin-bottom: var(--space-4);">
+                    <input type="date" id="log-date-picker" class="form-control" style="width: auto;">
+                    <button class="btn btn-ghost" id="filter-logs-btn">Filter</button>
+                    <button class="btn btn-ghost" id="clear-logs-btn" style="margin-left: auto;">🗑️ Delete Old</button>
+                </div>
+                
+                <div id="sms-logs-container" style="max-height: 400px; overflow-y: auto;">
+                    <div class="skeleton skeleton-text"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 
-        function addRecipient() {
-            const phone = document.getElementById('new_phone').value.trim();
-            if (!phone) {
-                showStatus('error', '❌ Please enter a phone number');
-                return;
-            }
-            fetch('/api/recipients', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ phone_number: phone })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    document.getElementById('new_phone').value = '';
-                    loadRecipients();
-                    showStatus('success', '✅ ' + data.message);
-                } else {
-                    showStatus('error', '❌ Error: ' + data.message);
-                }
-            })
-            .catch(err => showStatus('error', '❌ Network Error'));
-        }
-
-        function removeRecipient(e) {
-            const id = e.target.dataset.id;
-            if (!confirm('Remove this recipient?')) return;
-            fetch(`/api/recipients/${id}`, { method: 'DELETE' })
-                .then(r => r.json())
-                .then(data => {
-                    loadRecipients();
-                    showStatus('success', '✅ Recipient removed');
-                })
-                .catch(err => showStatus('error', '❌ Error removing recipient'));
-        }
-
-        function toggleRecipient(e) {
-            const id = e.target.dataset.id;
-            const currentEnabled = e.target.dataset.enabled === 'True' || e.target.dataset.enabled === '1';
-            fetch(`/api/recipients/${id}/toggle`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ enabled: !currentEnabled })
-            })
-            .then(r => r.json())
-            .then(data => {
-                loadRecipients();
-                showStatus('success', '✅ ' + data.message);
-            })
-            .catch(err => showStatus('error', '❌ Error toggling recipient'));
-        }
-
-        // ─── Alert Configuration Management ──────────────────────────────────
-
-        function loadAlertConfig() {
-            fetch('/api/alert_config')
-                .then(r => r.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        const config = data.config;
-                        document.getElementById('stationary_alert_minutes').value = config.stationary_alert_minutes;
-                        document.getElementById('stationary_heat_stress_minutes').value = config.stationary_heat_stress_minutes;
-                        document.getElementById('fever_delta_threshold_c').value = config.fever_delta_threshold_c;
-                        document.getElementById('population_lethargy_ratio').value = config.population_lethargy_ratio;
-                        document.getElementById('population_persist_seconds').value = config.population_persist_seconds;
-                        document.getElementById('thi_heat_stress_threshold').value = config.thi_heat_stress_threshold;
-                        document.getElementById('cooldown_minutes').value = config.cooldown_minutes;
-                        document.getElementById('alert_individual_enabled').checked = config.alert_individual_enabled;
-                        document.getElementById('alert_population_enabled').checked = config.alert_population_enabled;
-                    }
-                })
-                .catch(err => console.error('Failed to load alert config:', err));
-        }
-
-        function saveAlertConfig() {
-            const config = {
-                stationary_alert_minutes: parseFloat(document.getElementById('stationary_alert_minutes').value),
-                stationary_heat_stress_minutes: parseFloat(document.getElementById('stationary_heat_stress_minutes').value),
-                fever_delta_threshold_c: parseFloat(document.getElementById('fever_delta_threshold_c').value),
-                population_lethargy_ratio: parseFloat(document.getElementById('population_lethargy_ratio').value),
-                population_persist_seconds: parseInt(document.getElementById('population_persist_seconds').value),
-                thi_heat_stress_threshold: parseFloat(document.getElementById('thi_heat_stress_threshold').value),
-                cooldown_minutes: parseInt(document.getElementById('cooldown_minutes').value),
-                alert_individual_enabled: document.getElementById('alert_individual_enabled').checked,
-                alert_population_enabled: document.getElementById('alert_population_enabled').checked,
-            };
-
-            fetch('/api/alert_config', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(config)
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    showStatus('success', '✅ Settings saved! Changes take effect immediately.');
-                    loadAlertConfig();  // Reload to confirm
-                } else {
-                    showStatus('error', '❌ Error: ' + data.message);
-                }
-            })
-            .catch(err => showStatus('error', '❌ Network error saving settings'));
-        }
-
-        function resetToDefaults() {
-            if (!confirm('Reset all settings to defaults? This will overwrite current configuration.')) {
-                return;
-            }
-            const defaults = {
-                stationary_alert_minutes: 15.0,
-                stationary_heat_stress_minutes: 30.0,
-                fever_delta_threshold_c: 2.0,
-                population_lethargy_ratio: 0.60,
-                population_persist_seconds: 3,
-                thi_heat_stress_threshold: 78.0,
-                cooldown_minutes: 5,
-                alert_individual_enabled: true,
-                alert_population_enabled: true,
-            };
-
-            fetch('/api/alert_config', {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(defaults)
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    loadAlertConfig();
-                    showStatus('success', '✅ Reset to defaults');
-                } else {
-                    showStatus('error', '❌ Error: ' + data.message);
-                }
-            })
-            .catch(err => showStatus('error', '❌ Network error'));
-        }
-
-        function showStatus(className, message) {
-            const msg = document.getElementById('status-msg');
-            msg.className = className;
-            msg.innerText = message;
-            msg.style.display = 'block';
-            setTimeout(() => { msg.style.display = 'none'; }, 4000);
-        }
-
-        // ─── SMS Message Templates ────────────────────────────────────────
-
-        function loadSmsTemplates() {
-            fetch('/api/sms_templates')
-                .then(r => r.json())
-                .then(data => {
-                    const list = document.getElementById('templates-list');
-                    if (!data.templates || data.templates.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">No templates configured</div>';
-                        return;
-                    }
-                    list.innerHTML = data.templates.map(t => `
-                        <div style="background-color: #2a2a2a; padding: 10px; margin-bottom: 8px; border-radius: 4px; border-left: 3px solid #4CAF50;">
-                            <div style="font-weight: bold; color: #4CAF50;">${t.name} (${t.alert_type})</div>
-                            <div style="font-size: 0.9rem; color: #ccc; margin: 5px 0; word-break: break-word;">"${t.message_body}"</div>
-                            <button type="button" class="btn btn-small btn-secondary" style="margin-top: 5px; width: auto;" onclick="editTemplate(${t.id})">Edit</button>
-                        </div>
-                    `).join('');
-                })
-                .catch(err => console.error('Failed to load templates:', err));
-        }
-
-        function editTemplate(templateId) {
-            const newMessage = prompt('Enter new message template:');
-            if (!newMessage) return;
-            
-            fetch(`/api/sms_templates/${templateId}`, {
-                method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ message_body: newMessage })
-            })
-            .then(r => r.json())
-            .then(data => {
-                if (data.status === 'success') {
-                    showStatus('success', '✅ Template updated');
-                    loadSmsTemplates();
-                } else {
-                    showStatus('error', '❌ Error: ' + data.message);
-                }
-            })
-            .catch(err => showStatus('error', '❌ Network error'));
-        }
-
-        // ─── SMS Message Logs ────────────────────────────────────────────
-
-        function loadSmLogs() {
-            const dateInput = document.getElementById('log-date-picker').value;
-            const url = dateInput ? `/api/sms_logs?date=${dateInput}` : '/api/sms_logs?days=7';
-            
-            fetch(url)
-                .then(r => r.json())
-                .then(data => {
-                    const list = document.getElementById('sms-logs-list');
-                    if (!data.logs || data.logs.length === 0) {
-                        list.innerHTML = '<div style="text-align: center; color: #888; padding: 20px;">No logs to display</div>';
-                        return;
-                    }
-                    list.innerHTML = data.logs.map(log => `
-                        <div style="background-color: #2a2a2a; padding: 10px; margin-bottom: 8px; border-radius: 4px; border-left: 3px solid ${log.status === 'sent' ? '#4CAF50' : '#f44336'};">
-                            <div style="font-size: 0.85rem; color: #888;">${log.timestamp}</div>
-                            <div style="font-weight: bold; margin: 5px 0;">${log.alert_type.toUpperCase()} → ${log.recipient_phone}</div>
-                            <div style="font-size: 0.9rem; color: #ccc; word-break: break-word;">${log.message_body}</div>
-                            <div style="font-size: 0.8rem; color: ${log.status === 'sent' ? '#4CAF50' : '#f44336'}; margin-top: 5px;">Status: ${log.status}</div>
-                        </div>
-                    `).join('');
-                })
-                .catch(err => console.error('Failed to load logs:', err));
-        }
-
-        function deleteOldLogs() {
-            const beforeDate = prompt('Delete logs before date (YYYY-MM-DD):', new Date().toISOString().split('T')[0]);
-            if (!beforeDate) return;
-            if (!confirm(`Delete all SMS logs before ${beforeDate}?`)) return;
-            
-            fetch('/api/sms_logs/delete', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ before_date: beforeDate })
-            })
-            .then(r => r.json())
-            .then(data => {
-                showStatus('success', '✅ ' + data.message);
-                loadSmLogs();
-            })
-            .catch(err => showStatus('error', '❌ Network error'));
-        }
-
-        // ─── System Time Sync ─────────────────────────────────────────────
-
-        function updateCurrentTime() {
-            const now = new Date();
-            const timeStr = now.toUTCString().split(' ')[4];
-            document.getElementById('current-time').innerText = timeStr;
-        }
-
-        function loadTimeSyncLogs() {
-            fetch('/api/time_sync')
-                .then(r => r.json())
-                .then(data => {
-                    const logs = document.getElementById('time-sync-logs');
-                    if (!data.sync_logs || data.sync_logs.length === 0) {
-                        logs.innerHTML = '<div style="text-align: center; color: #888; padding: 20px; font-size: 0.9rem;">No sync history</div>';
-                        return;
-                    }
-                    logs.innerHTML = data.sync_logs.map(log => `
-                        <div style="background-color: #2a2a2a; padding: 8px; margin-bottom: 5px; border-radius: 3px; font-size: 0.85rem;">
-                            <div style="color: ${log.status === 'success' ? '#4CAF50' : '#f44336'};">
-                                ${log.source_type.toUpperCase()} - ${log.status} (${log.timestamp.split('T')[1].substring(0, 8)})
-                            </div>
-                        </div>
-                    `).join('');
-                })
-                .catch(err => console.error('Failed to load time sync logs:', err));
-        }
-
-        function syncNtp() {
-            if (!confirm('Synchronize system time via NTP?')) return;
-            
-            fetch('/api/time_sync', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ source_type: 'ntp' })
-            })
-            .then(r => r.json())
-            .then(data => {
-                showStatus(data.status === 'success' ? 'success' : 'error', 
-                    (data.status === 'success' ? '✅ ' : '❌ ') + data.message);
-                loadTimeSyncLogs();
-                updateCurrentTime();
-            })
-            .catch(err => showStatus('error', '❌ Network error'));
-        }
-
-        function showStatus(className, message) {
-            const msg = document.getElementById('status-msg');
-            msg.className = className;
-            msg.innerText = message;
-            msg.style.display = 'block';
-            setTimeout(() => { msg.style.display = 'none'; }, 4000);
-        }
-
-        // Event Listeners
-        document.getElementById('add-recipient-btn').addEventListener('click', addRecipient);
-        document.getElementById('save-config-btn').addEventListener('click', saveAlertConfig);
-        document.getElementById('reset-config-btn').addEventListener('click', resetToDefaults);
-        document.getElementById('filter-logs-btn').addEventListener('click', loadSmLogs);
-        document.getElementById('clear-logs-btn').addEventListener('click', deleteOldLogs);
-        document.getElementById('sync-ntp-btn').addEventListener('click', syncNtp);
-        document.getElementById('reset-templates-btn').addEventListener('click', () => {
-            if (confirm('Reset SMS templates to defaults?')) {
-                showStatus('success', '✅ Feature coming soon');
-            }
-        });
-        
-        // Allow Enter key to add recipient
-        document.getElementById('new_phone').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                addRecipient();
-            }
-        });
-    </script>
-
-</body>
-</html>
+</div>
+{% endblock %}
