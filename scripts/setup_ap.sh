@@ -107,8 +107,8 @@ if command -v nmcli &> /dev/null && systemctl is-active --quiet NetworkManager; 
     
     if [[ "$AP_PASS" == "OPEN" ]]; then
         info "Configuring OPEN (unsecured) network..."
+        # Simply configuring band and channel without a wifi-sec block makes it OPEN
         nmcli con modify PigMonitor_AP \
-            wifi-sec.key-mgmt none \
             802-11-wireless.band bg \
             802-11-wireless.channel 6
     else
