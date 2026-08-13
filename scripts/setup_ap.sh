@@ -67,6 +67,22 @@ else
     warn "raspi-config not found, skipping country code."
 fi
 
+# ── Install hostapd, dnsmasq, and ifupdown ──────────────────────────────────
+section "Installing required packages"
+export DEBIAN_FRONTEND=noninteractive
+# Wait for apt lock if running in background
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    warn "Waiting for other apt-get process to finish..."
+    sleep 5
+done
+
+apt-get update -qq
+apt-get install -y hostapd dnsmasq ifupdown
+
+# Stop them while we configure
+systemctl stop hostapd || true
+systemctl stop dnsmasq || true
+
 # ── Unmanage wlan0 from NetworkManager ──────────────────────────────────────
 section "Bypassing NetworkManager for wlan0"
 if systemctl is-active --quiet NetworkManager; then
@@ -85,22 +101,6 @@ EOF
     systemctl restart NetworkManager
     sleep 3
 fi
-
-# ── Install hostapd, dnsmasq, and ifupdown ──────────────────────────────────
-section "Installing required packages"
-export DEBIAN_FRONTEND=noninteractive
-# Wait for apt lock if running in background
-while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-    warn "Waiting for other apt-get process to finish..."
-    sleep 5
-done
-
-apt-get update -qq
-apt-get install -y hostapd dnsmasq ifupdown
-
-# Stop them while we configure
-systemctl stop hostapd || true
-systemctl stop dnsmasq || true
 
 # ── Configure Static IP ─────────────────────────────────────────────────────
 section "Configuring Static IP"
