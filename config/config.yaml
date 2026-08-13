@@ -128,5 +128,7 @@ network:
   ap:
     ssid: "PigMonitor_AP"
     password: "pigtracking123"
+    # ISO 3166-1 country where this AP is deployed. Change before deployment.
+    country_code: "PH"
     ip: "192.168.4.1"
     subnet: "192.168.4.0/24"

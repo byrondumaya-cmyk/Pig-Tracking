@@ -30,10 +30,12 @@ CONFIG_FILE="$PROJECT_ROOT/config/config.yaml"
 AP_SSID=$(grep -A5 'ap:' "$CONFIG_FILE" | grep 'ssid:' | head -1 | sed "s/.*ssid: *['\"]*//" | sed "s/['\"].*//")
 AP_PASS=$(grep -A5 'ap:' "$CONFIG_FILE" | grep 'password:' | head -1 | sed "s/.*password: *['\"]*//" | sed "s/['\"].*//")
 AP_IP=$(grep -A5 'ap:' "$CONFIG_FILE" | grep 'ip:' | head -1 | sed "s/.*ip: *['\"]*//" | sed "s/['\"].*//")
+AP_COUNTRY=$(grep -A6 'ap:' "$CONFIG_FILE" | grep 'country_code:' | head -1 | sed "s/.*country_code: *['\"]*//" | sed "s/['\"].*//")
 
 AP_SSID="${AP_SSID:-PigMonitor_AP}"
 AP_PASS="${AP_PASS:-CHANGE_ME}"
 AP_IP="${AP_IP:-192.168.4.1}"
+AP_COUNTRY="${AP_COUNTRY:-PH}"
 DHCP_START="192.168.4.10"
 DHCP_END="192.168.4.50"
 
@@ -61,8 +63,8 @@ fi
 # ── Set Wi-Fi Country Code (Critical for hostapd) ───────────────────────────
 section "Setting Wi-Fi Country Code"
 if command -v raspi-config &> /dev/null; then
-    raspi-config nonint do_wifi_country US
-    info "Country code set to US (maximizes channel compatibility)."
+    raspi-config nonint do_wifi_country "$AP_COUNTRY"
+    info "Country code set to $AP_COUNTRY."
 else
     warn "raspi-config not found, skipping country code."
 fi
@@ -108,7 +110,8 @@ rfkill unblock wifi || true
 
 mkdir -p /etc/network/interfaces.d
 cat > /etc/network/interfaces.d/wlan0 <<EOF
-allow-hotplug wlan0
+# Bring wlan0 up before hostapd and dnsmasq start at boot.
+auto wlan0
 iface wlan0 inet static
     address $AP_IP
     netmask 255.255.255.0
@@ -121,6 +124,8 @@ cat > /etc/hostapd/hostapd.conf <<EOF
 interface=wlan0
 driver=nl80211
 ssid=$AP_SSID
+country_code=$AP_COUNTRY
+ieee80211d=1
 hw_mode=g
 channel=6
 macaddr_acl=0
@@ -142,19 +147,40 @@ section "Configuring Dnsmasq"
 mv /etc/dnsmasq.conf /etc/dnsmasq.conf.orig 2>/dev/null || true
 cat > /etc/dnsmasq.conf <<EOF
 interface=wlan0
-bind-interfaces
+# wlan0 is configured by ifupdown during boot. bind-dynamic prevents dnsmasq
+# from failing if the interface address appears a moment after the service.
+bind-dynamic
 server=8.8.8.8
 domain-needed
 bogus-priv
 dhcp-range=$DHCP_START,$DHCP_END,255.255.255.0,24h
+dhcp-option=option:router,$AP_IP
+dhcp-option=option:dns-server,$AP_IP
+dhcp-authoritative
+log-dhcp
 address=/#/$AP_IP
 EOF
 info "dnsmasq.conf written."
 
+# dnsmasq must not start before ifupdown has assigned the AP address. Without
+# this ordering, bind-interfaces can leave a visible SSID with no DHCP service.
+mkdir -p /etc/systemd/system/hostapd.service.d /etc/systemd/system/dnsmasq.service.d
+cat > /etc/systemd/system/hostapd.service.d/pig-monitor.conf <<EOF
+[Unit]
+Wants=networking.service
+After=networking.service
+EOF
+cat > /etc/systemd/system/dnsmasq.service.d/pig-monitor.conf <<EOF
+[Unit]
+Requires=networking.service
+After=networking.service
+EOF
+systemctl daemon-reload
+
 # ── Enable Services ─────────────────────────────────────────────────────────
 section "Enabling Services"
 systemctl unmask hostapd || true
-systemctl enable hostapd dnsmasq
+systemctl enable networking hostapd dnsmasq
 
 # ── Update config.yaml to use ap mode ───────────────────────────────────────
 section "Updating config.yaml network mode to 'ap'"

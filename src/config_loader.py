@@ -121,6 +121,7 @@ class SystemConfig:
 class APConfig:
     ssid: str = "PigMonitor_AP"
     password: str = "CHANGE_ME"     # Must be set in config.yaml before deployment
+    country_code: str = "PH"
     ip: str = "192.168.4.1"
     subnet: str = "192.168.4.0/24"
 

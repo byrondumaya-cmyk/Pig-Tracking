@@ -1,6 +1,6 @@
 #!/bin/bash
 # scripts/diagnose_ap.sh
-# Diagnostic script to capture real-time NetworkManager, WPA Supplicant, and dnsmasq logs.
+# Diagnostic script to capture AP status and real-time hostapd/DHCP logs.
 # Run this script while attempting to connect a phone to the AP.
 
 # Colors for output
@@ -29,5 +29,23 @@ echo ""
 echo -e "${GREEN}Starting log capture. Waiting for connection attempts...${NC}"
 echo -e "----------------------------------------------------"
 
-# Tail logs for NetworkManager, wpa_supplicant, and dnsmasq
-journalctl -u NetworkManager -u wpa_supplicant -k -f --since "1 minute ago"
+echo -e "${CYAN}Current AP status:${NC}"
+echo ""
+systemctl --no-pager --full status networking hostapd dnsmasq || true
+echo ""
+ip -brief link show wlan0 || true
+ip -brief address show wlan0 || true
+iw dev wlan0 info 2>&1 || true
+echo ""
+echo -e "${CYAN}Configuration checks:${NC}"
+# systemd's startup log is the safe hostapd configuration check. Do not invoke
+# hostapd directly here: doing so would contend with the running AP daemon.
+grep -E '^(interface|ssid|country_code|hw_mode|channel|wpa)=' /etc/hostapd/hostapd.conf 2>&1 || true
+dnsmasq --test 2>&1 || true
+echo ""
+echo -e "${GREEN}Starting log capture. Attempt the phone connection now...${NC}"
+echo -e "----------------------------------------------------"
+
+# hostapd records authentication/association failures; dnsmasq records DHCP.
+# NetworkManager is included only to expose accidental wlan0 ownership.
+journalctl -u networking -u hostapd -u dnsmasq -u NetworkManager -k -f --since "5 minutes ago"
