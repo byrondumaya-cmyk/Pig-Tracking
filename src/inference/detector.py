@@ -203,8 +203,15 @@ class PigDetector:
             nms_threshold=self._iou_thresh,
         )
 
+        # OpenCV versions differ on NMSBoxes output shape:
+        #   <=4.9  → 2D array (N,1)
+        #   >=4.10 → 1D array / tuple of ints
+        if indices is None or len(indices) == 0:
+            return []
+        ids = np.asarray(indices, dtype=int).reshape(-1)
+
         results = []
-        for idx in (indices.flatten() if len(indices) > 0 else []):
+        for idx in ids:
             results.append({
                 "bbox": (float(x1[idx]), float(y1[idx]), float(x2[idx]), float(y2[idx])),
                 "confidence": float(confidences[idx]),

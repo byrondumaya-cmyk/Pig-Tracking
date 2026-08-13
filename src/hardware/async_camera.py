@@ -42,6 +42,7 @@ class AsyncCamera:
         height: int = 240,
         fps: int = 30,
         buffer_size: int = 2,
+        reconnect_after_errors: int = 60,
     ) -> None:
         """
         Initialize async camera.
@@ -52,11 +53,14 @@ class AsyncCamera:
             height: Capture height
             fps: Target capture FPS
             buffer_size: Max frames to keep in buffer (1-2 recommended)
+            reconnect_after_errors: Consecutive read failures before the capture
+                loop tears down and reopens the device (USB self-healing).
         """
         self.device_index = device_index
         self.width = width
         self.height = height
         self.fps = fps
+        self.reconnect_after_errors = reconnect_after_errors
 
         self._running = False
         self._thread: Optional[threading.Thread] = None
@@ -147,16 +151,37 @@ class AsyncCamera:
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
         cap.set(cv2.CAP_PROP_FPS, self.fps)
 
+        consecutive_errors = 0
+
         try:
             while self._running:
                 ret, frame = cap.read()
                 if ret and frame is not None:
+                    consecutive_errors = 0
                     with self._lock:
                         self._frame_buffer = frame
                         self._frame_count += 1
                 else:
+                    consecutive_errors += 1
                     self._error_count += 1
-                    time.sleep(0.01)  # Brief pause on error
+                    # Self-heal: if the camera stalls (USB dropout, suspend,
+                    # unplug/replug), release the device and reopen it.
+                    # Without this the live feed freezes permanently.
+                    if consecutive_errors >= self.reconnect_after_errors:
+                        logger.warning("Camera read failing; reopening device...")
+                        cap.release()
+                        time.sleep(2.0)
+                        cap = cv2.VideoCapture(self.device_index)
+                        if cap.isOpened():
+                            cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
+                            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
+                            cap.set(cv2.CAP_PROP_FPS, self.fps)
+                            consecutive_errors = 0
+                        else:
+                            logger.error("Camera reopen failed; will retry.")
+                            time.sleep(5.0)
+                    else:
+                        time.sleep(0.01)  # Brief pause on error
 
         except Exception as e:
             logger.error(f"Camera capture exception: {e}")

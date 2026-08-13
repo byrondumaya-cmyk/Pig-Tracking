@@ -24,6 +24,11 @@ from src.tracking.sort_tracker import SORTTracker
 
 logger = logging.getLogger(__name__)
 
+# Beyond this many cached track entries, prune dead track IDs.
+# SORT track_ids come from a monotonic counter and are never reused,
+# so forgetting old entries is always safe.
+_MAX_CACHE_ENTRIES = 256
+
 
 @dataclass
 class TrackedPig:
@@ -53,8 +58,18 @@ class PigTracker:
             iou_threshold=iou_threshold,
         )
         self._detection_cache: dict[int, tuple] = {}  # track_id → (behavior, confidence)
+        self._last_track_ids: set[int] = set()        # Track IDs from the previous update
 
     def update(self, detections: List[dict], class_names: List[str]) -> List[TrackedPig]:
+        # Prune cache entries for track IDs not seen in the last update.
+        # SORT track_ids come from a monotonic counter and are never reused,
+        # so forgetting old entries is always safe. This prevents unbounded
+        # memory growth on long-running deployments.
+        if len(self._detection_cache) > _MAX_CACHE_ENTRIES:
+            for tid in list(self._detection_cache):
+                if tid not in self._last_track_ids:
+                    del self._detection_cache[tid]
+
         """
         Update tracker with new YOLO detections.
 
@@ -75,9 +90,11 @@ class PigTracker:
 
         # Match SORT outputs back to original detections by IoU
         tracked = []
+        current_ids = set()
         for track in sort_output:
             x1, y1, x2, y2, track_id = track
             track_id = int(track_id)
+            current_ids.add(track_id)
 
             # Find best matching detection for this track by spatial proximity
             best_idx = _closest_detection(detections, (x1, y1, x2, y2))
@@ -97,6 +114,7 @@ class PigTracker:
                 bbox=(x1, y1, x2, y2),
             ))
 
+        self._last_track_ids = current_ids
         return tracked
 
 

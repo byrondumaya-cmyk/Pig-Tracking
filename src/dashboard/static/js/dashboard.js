@@ -89,7 +89,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Behavior Distribution ───────────────────────────────────────────────
-    const behaviorKeys = ['lying', 'standing', 'walking', 'sitting', 'feeding', 'drinking', 'social', 'aggression'];
+    // API keys use the canonical class names; the UI shortens 'social_interaction'
+    const behaviorKeys = [
+        ['lying', 'lying'],
+        ['standing', 'standing'],
+        ['walking', 'walking'],
+        ['sitting', 'sitting'],
+        ['feeding', 'feeding'],
+        ['drinking', 'drinking'],
+        ['social', 'social_interaction'],
+        ['aggression', 'aggression'],
+    ];
 
     async function fetchBehaviors() {
         try {
@@ -99,13 +109,13 @@ document.addEventListener('DOMContentLoaded', () => {
             updateText('pig-count', total.toString());
             updateText('pill-pigs', total.toString());
 
-            behaviorKeys.forEach(key => {
-                const count = data[key] || 0;
+            behaviorKeys.forEach(([uiKey, apiKey]) => {
+                const count = data[apiKey] || 0;
                 const pct = total > 0 ? (count / total) * 100 : 0;
                 
-                updateText(`count-${key}`, count.toString());
+                updateText(`count-${uiKey}`, count.toString());
                 
-                const bar = document.getElementById(`bar-${key}`);
+                const bar = document.getElementById(`bar-${uiKey}`);
                 if (bar) {
                     bar.style.width = `${pct}%`;
                 }
@@ -270,4 +280,3 @@ document.addEventListener('DOMContentLoaded', () => {
     setInterval(fetchAmbient, 5000);  // 5s for ambient (sensor is slow anyway)
     setInterval(fetchAlerts, 5000);   // 5s for alerts
 });
-

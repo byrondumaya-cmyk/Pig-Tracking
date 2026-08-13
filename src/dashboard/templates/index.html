@@ -134,35 +134,7 @@
             </div>
         </section>
 
-        <!-- AP Connection Info (shown only in AP mode) -->
-        <section class="panel" id="ap-info-card" style="display:none;">
-            <div class="panel__header">
-                <h2 class="panel__title">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline-block; vertical-align:text-bottom; margin-right:4px;"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg>
-                    Connect to This Device
-                </h2>
-            </div>
-            <div class="panel__body" style="display:flex; flex-direction:column; align-items:center; gap:var(--space-3);">
-                <canvas id="ap-qr-canvas" style="border-radius:8px; background:#fff; padding:8px;"></canvas>
-                <div style="width:100%; font-size:0.8rem; color:var(--text-secondary);">
-                    <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--border-subtle);">
-                        <span>Network</span>
-                        <strong id="ap-ssid" style="color:var(--text-primary);">--</strong>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; padding:4px 0; border-bottom:1px solid var(--border-subtle);">
-                        <span>Password</span>
-                        <strong id="ap-password" style="color:var(--text-primary); font-family:monospace;">--</strong>
-                    </div>
-                    <div style="display:flex; justify-content:space-between; padding:4px 0;">
-                        <span>Dashboard</span>
-                        <strong id="ap-url" style="color:var(--accent);">--</strong>
-                    </div>
-                </div>
-                <p style="font-size:0.75rem; color:var(--text-muted); text-align:center; margin:0;">
-                    Scan QR with your phone camera to join the Wi-Fi network
-                </p>
-            </div>
-        </section>
+
 
     </div>
 </div>

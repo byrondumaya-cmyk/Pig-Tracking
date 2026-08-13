@@ -55,9 +55,7 @@ def _x_to_box(x: np.ndarray) -> np.ndarray:
 class KalmanBoxTracker:
     """Single tracked object using a constant-velocity Kalman filter."""
 
-    _count = 0
-
-    def __init__(self, bbox: np.ndarray) -> None:
+    def __init__(self, bbox: np.ndarray, track_id: int) -> None:
         self.kf = KalmanFilter(dim_x=7, dim_z=4)
         self.kf.F = np.array([
             [1, 0, 0, 0, 1, 0, 0],
@@ -82,8 +80,7 @@ class KalmanBoxTracker:
         self.kf.x[:4] = _box_to_z(bbox)
 
         self.time_since_update = 0
-        self.id = KalmanBoxTracker._count
-        KalmanBoxTracker._count += 1
+        self.id = track_id
         self.hit_streak = 0
         self.age = 0
 
@@ -150,6 +147,16 @@ class SORTTracker:
         self.iou_threshold = iou_threshold
         self.trackers: list[KalmanBoxTracker] = []
         self.frame_count = 0
+        # Per-instance ID counter. The original SORT used a module-global
+        # counter that leaked state across tracker instances. IDs are
+        # session-scoped and temporary, so per-instance is correct.
+        self._next_id = 0
+
+    def _new_tracker(self, bbox: np.ndarray) -> KalmanBoxTracker:
+        """Create a track with the next per-instance ID."""
+        trk = KalmanBoxTracker(bbox, track_id=self._next_id)
+        self._next_id += 1
+        return trk
 
     def update(self, detections: np.ndarray) -> np.ndarray:
         """
@@ -174,7 +181,7 @@ class SORTTracker:
             self.trackers[m[1]].update(detections[m[0], :4])
 
         for d in unmatched_dets:
-            self.trackers.append(KalmanBoxTracker(detections[d, :4]))
+            self.trackers.append(self._new_tracker(detections[d, :4]))
 
         results = []
         to_remove = []

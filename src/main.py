@@ -242,8 +242,24 @@ class SwineHealthMonitor:
         fps_display = 0.0
         ambient = None
         dht_last_read = 0.0
+        retention_delay = 0.0   # When to next run DB retention pruning
 
         while self._running:
+            # --- Periodic database retention pruning (every 6 h) ---
+            now = time.time()
+            if now >= retention_delay and self.repository:
+                try:
+                    pruned_det = self.repository.prune_detections(keep_days=7)
+                    pruned_amb = self.repository.prune_ambient_readings(keep_days=30)
+                    if pruned_det or pruned_amb:
+                        logger.info(
+                            "Retention prune: removed %d detections, %d ambient readings.",
+                            pruned_det, pruned_amb,
+                        )
+                except Exception as exc:
+                    logger.warning("Retention prune failed: %s", exc)
+                retention_delay = now + 6 * 3600
+
             # Non-blocking camera read (async)
             frame = camera.read()
             if frame is None:
@@ -341,13 +357,15 @@ class SwineHealthMonitor:
                 ambient=ambient,
             )
 
-            # --- Persist detections ---
+            # --- Persist detections (batched, single transaction) ---
             try:
-                for pig in tracked_pigs:
-                    self.repository.insert_detection(
+                self.repository.insert_detections_batch(
+                    (
                         pig.track_id, pig.behavior, pig.confidence, pig.bbox,
-                        zone_temp_c=temperature_map.get(pig.track_id, 0.0),
+                        temperature_map.get(pig.track_id, 0.0),
                     )
+                    for pig in tracked_pigs
+                )
             except Exception as db_exc:
                 logger.warning("DB write failed (detections): %s", db_exc)
 
@@ -424,9 +442,26 @@ class SwineHealthMonitor:
         )
 
     def shutdown(self) -> None:
-        """Gracefully stop all subsystems."""
+        """Gracefully stop all subsystems.
+
+        Releases hardware resources (DHT22, GSM serial) once the main
+        loop has exited. The Flask thread is a daemon and stops with the
+        process, so we only need to clean up sensors here.
+        """
         logger.info("Shutting down...")
         self._running = False
+
+        if getattr(self, "dht_sensor", None):
+            try:
+                self.dht_sensor.close()
+            except Exception:
+                pass
+        if getattr(self, "gsm", None):
+            try:
+                self.gsm.close()
+            except Exception:
+                pass
+        logger.info("Hardware resources released.")
 
 
 def _parse_args() -> argparse.Namespace:

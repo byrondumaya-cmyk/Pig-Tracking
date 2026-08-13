@@ -16,7 +16,7 @@ import sqlite3
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Generator, Optional
+from typing import Generator, Iterable, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -26,11 +26,27 @@ def _ts() -> str:
     return datetime.utcnow().isoformat()
 
 
+def _lastrowid(cur: sqlite3.Cursor) -> int:
+    """Return the last insert row id.
+
+    sqlite3.Cursor.lastrowid is typed as int | None, but INSERT always
+    populates it. This helper centralizes the non-None assertion.
+    """
+    rowid = cur.lastrowid
+    assert rowid is not None, "INSERT statement did not return a rowid"
+    return rowid
+
+
 @contextmanager
 def _conn(db_path: Path) -> Generator[sqlite3.Connection, None, None]:
-    """Thread-safe context manager for SQLite connections."""
-    con = sqlite3.connect(db_path, check_same_thread=False)
+    """Thread-safe context manager for SQLite connections.
+
+    busy_timeout prevents transient 'database is locked' errors from
+    concurrent dashboard reads and inference writes.
+    """
+    con = sqlite3.connect(str(db_path), timeout=5.0, check_same_thread=False)
     con.row_factory = sqlite3.Row
+    con.execute("PRAGMA busy_timeout=5000")
     try:
         yield con
         con.commit()
@@ -88,6 +104,53 @@ class SwineRepository:
                 (_ts(), track_id, behavior, confidence, x1, y1, x2, y2, zone_temp_c),
             )
 
+    def insert_detections_batch(self, records: Iterable[tuple]) -> int:
+        """Insert many detections in a single transaction.
+
+        Each record is (track_id, behavior, confidence, (x1,y1,x2,y2), zone_temp_c).
+        Returns the number of rows inserted.
+        """
+        rows = []
+        ts = _ts()
+        for rec in records:
+            track_id, behavior, confidence, bbox, zone_temp_c = rec
+            x1, y1, x2, y2 = bbox
+            rows.append((ts, track_id, behavior, confidence, x1, y1, x2, y2, zone_temp_c))
+        if not rows:
+            return 0
+        with _conn(self._path) as con:
+            con.executemany(
+                """INSERT INTO detections
+                   (timestamp, track_id, behavior, confidence, box_x1, box_y1, box_x2, box_y2, zone_temp_c)
+                   VALUES (?,?,?,?,?,?,?,?,?)""",
+                rows,
+            )
+        return len(rows)
+
+    # ── Retention Pruning ───────────────────────────────────────────────
+
+    def prune_detections(self, keep_days: int) -> int:
+        """Delete detections older than keep_days. Returns rows removed."""
+        if keep_days < 1:
+            raise ValueError("keep_days must be >= 1")
+        with _conn(self._path) as con:
+            cur = con.execute(
+                "DELETE FROM detections WHERE timestamp < datetime('now', ?)",
+                (f"-{keep_days} days",),
+            )
+            return cur.rowcount
+
+    def prune_ambient_readings(self, keep_days: int) -> int:
+        """Delete ambient readings older than keep_days. Returns rows removed."""
+        if keep_days < 1:
+            raise ValueError("keep_days must be >= 1")
+        with _conn(self._path) as con:
+            cur = con.execute(
+                "DELETE FROM ambient_readings WHERE timestamp < datetime('now', ?)",
+                (f"-{keep_days} days",),
+            )
+            return cur.rowcount
+
     # ── Pen Alerts ──────────────────────────────────────────────────────
 
     def insert_alert(
@@ -124,7 +187,7 @@ class SwineRepository:
                     int(sms_sent), recipients_json, snapshot_path,
                 ),
             )
-            return cur.lastrowid
+            return _lastrowid(cur)
 
     def get_recent_alerts(self, limit: int = 20) -> list[dict]:
         """Return recent alerts ordered by newest first."""
@@ -175,7 +238,7 @@ class SwineRepository:
                    VALUES (?,?,?,?)""",
                 (phone_number, 1, _ts(), _ts()),
             )
-            return cur.lastrowid
+            return _lastrowid(cur)
 
     def remove_recipient(self, recipient_id: int) -> None:
         """Delete a recipient by id."""
@@ -352,7 +415,7 @@ class SwineRepository:
                    VALUES (?,?,?,?,?)""",
                 (alert_type, name, message_body, _ts(), _ts()),
             )
-            return cursor.lastrowid
+            return _lastrowid(cursor)
 
     def update_sms_template(self, template_id: int, message_body: str, enabled: bool | None = None) -> None:
         """Update an SMS message template."""
@@ -412,7 +475,7 @@ class SwineRepository:
                    VALUES (?,?,?,?,?,?,?)""",
                 (_ts(), alert_type, recipient_phone, message_body, status, error_message, pen_alert_id),
             )
-            return cursor.lastrowid
+            return _lastrowid(cursor)
 
     def get_sms_logs(self, days_back: int = 7, alert_type: str | None = None) -> list[dict]:
         """Get SMS logs from the last N days, optionally filtered by alert type."""
@@ -473,7 +536,7 @@ class SwineRepository:
                    VALUES (?,?,?,?,?,?)""",
                 (_ts(), source_type, source_ip, old_time, new_time, status),
             )
-            return cursor.lastrowid
+            return _lastrowid(cursor)
 
     def get_time_sync_logs(self, limit: int = 20) -> list[dict]:
         """Get recent time sync log entries."""
@@ -483,4 +546,3 @@ class SwineRepository:
                 (limit,),
             ).fetchall()
             return [dict(row) for row in rows]
-

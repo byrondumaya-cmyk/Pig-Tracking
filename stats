@@ -1,0 +1,25 @@
+import json
+from collections import Counter
+from pathlib import Path
+
+root = Path("data")
+class_names = ["lying", "standing", "walking", "sitting", "feeding", "drinking", "social_interaction", "aggression"]
+stats = {}
+for split in ("train", "valid", "test"):
+    img_dir = root / split / "images"
+    lbl_dir = root / split / "labels"
+    images = sorted(img_dir.glob("*.jpg")) + sorted(img_dir.glob("*.jpeg")) + sorted(img_dir.glob("*.png"))
+    label_counts = Counter()
+    for lf in sorted(lbl_dir.glob("*.txt")):
+        if lf.name == "labels.cache":
+            continue
+        for line in lf.read_text().strip().splitlines():
+            if line.strip():
+                cls = int(line.split()[0])
+                label_counts[cls] += 1
+    stats[split] = {
+        "images": len(images),
+        "labels": sum(label_counts.values()),
+        "by_class": {class_names[c]: label_counts.get(c, 0) for c in range(8)},
+    }
+print(json.dumps(stats, indent=2))

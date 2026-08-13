@@ -4,11 +4,12 @@ SQLite Schema Definitions
 
 PURPOSE:
     Defines the SQLite database schema for offline tracking.
-    Initializes tables if they do not exist.
+    Initializes tables if they do not exist and applies
+    forward migrations via PRAGMA user_version.
 """
 
-import sqlite3
 import logging
+import sqlite3
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -110,17 +111,48 @@ CREATE TABLE IF NOT EXISTS time_sync_log (
 );
 """
 
+# ── Forward migrations ──────────────────────────────────────────────────────
+# Applied in order after the base schema. Each entry is a SQL script.
+# Never edit an existing entry — append a new one.
+MIGRATIONS: list[str] = [
+    # v1: performance indexes for timestamp-based retention pruning & queries.
+    """
+    CREATE INDEX IF NOT EXISTS idx_detections_timestamp ON detections(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_ambient_timestamp ON ambient_readings(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_pen_alerts_timestamp ON pen_alerts(timestamp);
+    CREATE INDEX IF NOT EXISTS idx_sms_logs_timestamp ON sms_logs(timestamp);
+    """,
+]
+
+SCHEMA_VERSION = len(MIGRATIONS)
+
+
+def _apply_migrations(conn: sqlite3.Connection) -> None:
+    """Apply pending forward migrations recorded in PRAGMA user_version."""
+    current = conn.execute("PRAGMA user_version").fetchone()[0]
+    if current < 0:
+        current = 0
+    for i in range(current + 1, len(MIGRATIONS) + 1):
+        script = MIGRATIONS[i - 1]
+        conn.executescript(script)
+        conn.execute(f"PRAGMA user_version = {i}")
+        logger.info("Applied database migration v%d", i)
+
+
 def initialize_database(db_path: str | Path) -> None:
-    """Create database tables if they do not exist."""
+    """Create database tables if they do not exist and apply migrations."""
     db_path = Path(db_path)
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
     try:
-        with sqlite3.connect(db_path) as conn:
+        with sqlite3.connect(db_path, timeout=10.0) as conn:
             # Enable WAL mode for better concurrency (dashboard reads while inference writes)
             conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA foreign_keys=ON;")
+            conn.execute("PRAGMA busy_timeout=5000;")
             conn.executescript(SCHEMA_SQL)
-        logger.info(f"Database initialized successfully at {db_path}")
+            _apply_migrations(conn)
+        logger.info("Database initialized at %s (schema v%d)", db_path, SCHEMA_VERSION)
     except sqlite3.Error as e:
-        logger.error(f"Failed to initialize database: {e}")
+        logger.error("Failed to initialize database: %s", e)
         raise

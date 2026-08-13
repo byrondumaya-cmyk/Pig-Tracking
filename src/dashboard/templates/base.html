@@ -163,17 +163,17 @@
                 });
             };
 
-            setDot('camera', status.camera === 'active');
-            setDot('thermal', status.thermal === 'active');
+            setDot('camera', status.camera === 'online');
+            setDot('thermal', status.thermal === 'online');
             
-            // GSM can be 'active', 'offline', or 'disabled' (no hardware)
+            // GSM can be 'enabled', or 'disabled' (no hardware configured)
             const gsmStatus = status.gsm;
             ['status-gsm', 'drawer-gsm'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
                     el.className = 'status-dot';
-                    if (gsmStatus === 'active') el.classList.add('online');
-                    else if (gsmStatus === 'disabled' || gsmStatus === 'not_configured') el.classList.add('disabled');
+                    if (gsmStatus === 'enabled') el.classList.add('online');
+                    else if (gsmStatus === 'disabled') el.classList.add('disabled');
                     else el.classList.add('offline');
                 }
             });
@@ -182,7 +182,7 @@
             ['status-uptime', 'drawer-uptime'].forEach(id => {
                 const el = document.getElementById(id);
                 if (el) {
-                    el.textContent = id.includes('drawer') ? `Up: ${status.uptime_formatted}` : `Uptime: ${status.uptime_formatted}`;
+                    el.textContent = id.includes('drawer') ? `Up: ${status.uptime}` : `Uptime: ${status.uptime}`;
                 }
             });
         }
