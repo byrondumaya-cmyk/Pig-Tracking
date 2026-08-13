@@ -127,6 +127,6 @@ network:
   mode: "ap"           # "lan" | "ap"
   ap:
     ssid: "PigMonitor_AP"
-    password: "OPEN"
+    password: "pigtracking123"
     ip: "192.168.4.1"
     subnet: "192.168.4.0/24"

@@ -1,32 +1,22 @@
-#!/usr/bin/env bash
-# =============================================================================
+#!/bin/bash
 # scripts/setup_ap.sh
-# Idempotent Access Point (AP) mode setup for Raspberry Pi (Bullseye & Bookworm)
-#
-# Run ONCE on the Raspberry Pi when deploying in field/AP mode.
-# Safe to re-run — backs up existing configs before overwriting.
-#
-# Usage:
-#   chmod +x scripts/setup_ap.sh
-#   sudo ./scripts/setup_ap.sh
-#
-# After running:
-#   - Pi broadcasts WiFi SSID from config/config.yaml
-#   - Dashboard accessible at http://192.168.4.1:5000
-#   - Connect phone/laptop to the AP SSID, then open the URL above
-#
-# To UNDO: restore from /etc/pig_monitor_backup/ and reboot.
-# =============================================================================
+# Configures the Raspberry Pi as a Wi-Fi Access Point using hostapd & dnsmasq.
+# This explicitly BYPASSES NetworkManager to avoid known wpa_supplicant bugs on Bookworm.
 
-set -euo pipefail
+set -e
 
-RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; CYAN='\033[0;36m'; NC='\033[0m'
-info()    { echo -e "${GREEN}[INFO]${NC}  $*"; }
-warn()    { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-error()   { echo -e "${RED}[ERROR]${NC} $*"; exit 1; }
-section() { echo -e "\n${CYAN}━━━ $* ━━━${NC}"; }
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
 
-# ── Must be root ──────────────────────────────────────────────────────────────
+info()  { echo -e "  ${GREEN}[INFO]${NC}  $1"; }
+warn()  { echo -e "  ${YELLOW}[WARN]${NC}  $1"; }
+error() { echo -e "  ${RED}[ERROR]${NC} $1"; exit 1; }
+section() { echo ""; echo -e "${CYAN}━━━ $1 ━━━${NC}"; }
+
 [[ $EUID -ne 0 ]] && error "Run as root: sudo $0"
 
 # ── Locate project + config ───────────────────────────────────────────────────
@@ -48,203 +38,132 @@ DHCP_START="192.168.4.10"
 DHCP_END="192.168.4.50"
 
 # Safety check on default password
-if [[ "$AP_PASS" == "CHANGE_ME" ]]; then
-    warn "AP password is still 'CHANGE_ME'."
+if [[ "$AP_PASS" == "CHANGE_ME" || -z "$AP_PASS" ]]; then
+    warn "AP password is not securely set."
     warn "Edit config/config.yaml → network.ap.password before deploying."
     read -rp "Continue anyway? (y/N): " CONTINUE
     [[ "$CONTINUE" =~ ^[Yy]$ ]] || { info "Aborted."; exit 0; }
 fi
 
-section "Configuration"
+section "Configuration (Hostapd/Legacy Stack)"
 info "SSID     : $AP_SSID"
 info "Password : [set in config.yaml]"
 info "AP IP    : $AP_IP"
 info "DHCP     : $DHCP_START – $DHCP_END"
+
 echo ""
-read -rp "Apply these settings? (y/N): " CONFIRM
-[[ "$CONFIRM" =~ ^[Yy]$ ]] || { info "Aborted."; exit 0; }
-
-# ── Backup existing configs ───────────────────────────────────────────────────
-section "Backing up existing network configs"
-BACKUP_DIR="/etc/pig_monitor_backup/$(date +%Y%m%d_%H%M%S)"
-mkdir -p "$BACKUP_DIR"
-chmod 700 "$BACKUP_DIR" # Security: Protect backed-up passwords
-for f in /etc/dhcpcd.conf /etc/hostapd/hostapd.conf /etc/dnsmasq.conf /etc/default/hostapd; do
-    [[ -f "$f" ]] && cp "$f" "$BACKUP_DIR/" && info "Backed up $f"
-done
-info "Backups saved to $BACKUP_DIR"
-
-# ── Unblock WiFi ──────────────────────────────────────────────────────────────
-# Ensure rfkill isn't soft-blocking the WiFi radio
-if command -v rfkill &> /dev/null; then
-    rfkill unblock wifi
-    info "WiFi radio unblocked via rfkill"
+read -rp "Apply these settings? (y/N): " APPLY
+if [[ ! "$APPLY" =~ ^[Yy]$ ]]; then
+    info "Setup aborted."
+    exit 0
 fi
 
-# ── Detect Network Manager (Bookworm vs Bullseye) ─────────────────────────────
-if command -v nmcli &> /dev/null && systemctl is-active --quiet NetworkManager; then
-    # =========================================================================
-    # MODERN PATH: Raspberry Pi OS Bookworm (NetworkManager)
-    # =========================================================================
-    section "Applying NetworkManager AP Configuration (Bookworm)"
-    
-    # 1. Clean up old connections named PigMonitor_AP
+# ── Set Wi-Fi Country Code (Critical for hostapd) ───────────────────────────
+section "Setting Wi-Fi Country Code"
+if command -v raspi-config &> /dev/null; then
+    raspi-config nonint do_wifi_country US
+    info "Country code set to US (maximizes channel compatibility)."
+else
+    warn "raspi-config not found, skipping country code."
+fi
+
+# ── Unmanage wlan0 from NetworkManager ──────────────────────────────────────
+section "Bypassing NetworkManager for wlan0"
+if systemctl is-active --quiet NetworkManager; then
+    # Delete any existing PigMonitor_AP connections to prevent conflicts
     if nmcli con show "PigMonitor_AP" &> /dev/null; then
-        nmcli con delete "PigMonitor_AP"
+        nmcli con delete "PigMonitor_AP" || true
         info "Removed old NetworkManager AP profile."
     fi
-    
-    # 2. Stop hostapd/dnsmasq if they were accidentally installed and running
-    systemctl stop hostapd dnsmasq 2>/dev/null || true
-    systemctl disable hostapd dnsmasq 2>/dev/null || true
-    # 2.5 Ensure dnsmasq-base is installed for the shared IP method
-    apt-get update -qq && apt-get install -y dnsmasq-base
 
-    # 3. Create the Hotspot
-    info "Creating NetworkManager Hotspot connection..."
-    # Create the base connection (disabling IPv6 to prevent immediate drops)
-    nmcli con add type wifi ifname wlan0 mode ap con-name PigMonitor_AP ssid "$AP_SSID" ipv4.method shared ipv4.addresses "$AP_IP/24" ipv6.method disabled
-    
-    if [[ "$AP_PASS" == "OPEN" ]]; then
-        info "Configuring OPEN (unsecured) network..."
-        # Simply configuring band and channel without a wifi-sec block makes it OPEN
-        nmcli con modify PigMonitor_AP \
-            802-11-wireless.band bg \
-            802-11-wireless.channel 6
-    else
-        info "Configuring WPA2-PSK secured network..."
-        # Apply security and radio fixes for maximum phone compatibility:
-        # - wifi-sec.pmf 1        : Disable Protected Management Frames (fixes iPhone connection drops)
-        # - 802-11-wireless.channel 6 : Prevent auto-channel selection failures (common on Pi)
-        # - wifi-sec.proto rsn, ccmp  : Strictly enforce WPA2-AES (no WPA3 mixed mode)
-        nmcli con modify PigMonitor_AP \
-            wifi-sec.key-mgmt wpa-psk \
-            wifi-sec.psk "$AP_PASS" \
-            wifi-sec.pmf 1 \
-            wifi-sec.proto rsn \
-            wifi-sec.pairwise ccmp \
-            wifi-sec.group ccmp \
-            802-11-wireless.band bg \
-            802-11-wireless.channel 6
-    fi
-    
-    # Optional: ensure NM automatically starts it on boot
-    nmcli con modify PigMonitor_AP connection.autoconnect yes
-
-    # Security: Ensure NM connection files are restricted
-    chmod 600 /etc/NetworkManager/system-connections/PigMonitor_AP.nmconnection 2>/dev/null || true
-    
-    info "Activating Hotspot..."
-    nmcli con up PigMonitor_AP
-
-    info "NetworkManager AP configured successfully."
-
-else
-    # =========================================================================
-    # LEGACY PATH: Raspberry Pi OS Bullseye (dhcpcd + hostapd + dnsmasq)
-    # =========================================================================
-    section "Applying Legacy AP Configuration (Bullseye)"
-    
-    info "Installing hostapd and dnsmasq..."
-    apt-get update -qq
-    apt-get install -y hostapd dnsmasq
-    systemctl stop hostapd dnsmasq 2>/dev/null || true
-
-    # ── Configure static IP for wlan0 (via dhcpcd) ───────────────────────────
-    DHCPCD_CONF="/etc/dhcpcd.conf"
-    if [[ -f "$DHCPCD_CONF" ]]; then
-        sed -i '/# BEGIN pig_monitor_ap/,/# END pig_monitor_ap/d' "$DHCPCD_CONF"
-        cat >> "$DHCPCD_CONF" <<EOF
-
-# BEGIN pig_monitor_ap — managed by scripts/setup_ap.sh
-interface wlan0
-    static ip_address=${AP_IP}/24
-    nohook wpa_supplicant
-# END pig_monitor_ap
+    mkdir -p /etc/NetworkManager/conf.d
+    cat > /etc/NetworkManager/conf.d/99-unmanaged-devices.conf <<EOF
+[keyfile]
+unmanaged-devices=interface-name:wlan0
 EOF
-        info "dhcpcd.conf updated with static $AP_IP on wlan0"
-    fi
+    info "Created /etc/NetworkManager/conf.d/99-unmanaged-devices.conf"
+    systemctl restart NetworkManager
+    sleep 3
+fi
 
-    # ── Configure hostapd ────────────────────────────────────────────────────
-    mkdir -p /etc/hostapd
-    cat > /etc/hostapd/hostapd.conf <<EOF
-# Managed by scripts/setup_ap.sh — Swine Health Monitor AP
+# ── Install hostapd, dnsmasq, and ifupdown ──────────────────────────────────
+section "Installing required packages"
+export DEBIAN_FRONTEND=noninteractive
+# Wait for apt lock if running in background
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+    warn "Waiting for other apt-get process to finish..."
+    sleep 5
+done
+
+apt-get update -qq
+apt-get install -y hostapd dnsmasq ifupdown
+
+# Stop them while we configure
+systemctl stop hostapd || true
+systemctl stop dnsmasq || true
+
+# ── Configure Static IP ─────────────────────────────────────────────────────
+section "Configuring Static IP"
+rfkill unblock wifi || true
+
+mkdir -p /etc/network/interfaces.d
+cat > /etc/network/interfaces.d/wlan0 <<EOF
+allow-hotplug wlan0
+iface wlan0 inet static
+    address $AP_IP
+    netmask 255.255.255.0
+EOF
+info "Static IP configured in /etc/network/interfaces.d/wlan0"
+
+# ── Configure hostapd ───────────────────────────────────────────────────────
+section "Configuring Hostapd"
+cat > /etc/hostapd/hostapd.conf <<EOF
 interface=wlan0
 driver=nl80211
-ssid=${AP_SSID}
+ssid=$AP_SSID
 hw_mode=g
-channel=7
-ieee80211n=1
-wmm_enabled=0
+channel=6
 macaddr_acl=0
 auth_algs=1
 ignore_broadcast_ssid=0
 wpa=2
-wpa_passphrase=${AP_PASS}
+wpa_passphrase=$AP_PASS
 wpa_key_mgmt=WPA-PSK
-wpa_pairwise=TKIP
+wpa_pairwise=CCMP
 rsn_pairwise=CCMP
 EOF
-    chmod 600 /etc/hostapd/hostapd.conf # Security
+info "hostapd.conf written."
 
-    sed -i 's|#DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd
-    
-    # Fix Race Condition: Ensure hostapd waits for network online target
-    mkdir -p /etc/systemd/system/hostapd.service.d
-    cat > /etc/systemd/system/hostapd.service.d/override.conf <<EOF
-[Unit]
-After=network-online.target
-Wants=network-online.target
+# Point default hostapd to our conf
+sed -i 's|^#DAEMON_CONF=.*|DAEMON_CONF="/etc/hostapd/hostapd.conf"|' /etc/default/hostapd || echo 'DAEMON_CONF="/etc/hostapd/hostapd.conf"' >> /etc/default/hostapd
 
-[Service]
-Restart=on-failure
-RestartSec=5
-EOF
-    systemctl daemon-reload
-
-    info "hostapd configured for SSID: $AP_SSID"
-
-    # ── Configure dnsmasq (DHCP server) ──────────────────────────────────────
-    DNSMASQ_CONF="/etc/dnsmasq.conf"
-    sed -i '/# BEGIN pig_monitor_ap/,/# END pig_monitor_ap/d' "$DNSMASQ_CONF"
-    cat >> "$DNSMASQ_CONF" <<EOF
-
-# BEGIN pig_monitor_ap — managed by scripts/setup_ap.sh
+# ── Configure dnsmasq ───────────────────────────────────────────────────────
+section "Configuring Dnsmasq"
+mv /etc/dnsmasq.conf /etc/dnsmasq.conf.orig 2>/dev/null || true
+cat > /etc/dnsmasq.conf <<EOF
 interface=wlan0
-dhcp-range=${DHCP_START},${DHCP_END},255.255.255.0,24h
-address=/#/${AP_IP}
-# END pig_monitor_ap
+bind-interfaces
+server=8.8.8.8
+domain-needed
+bogus-priv
+dhcp-range=$DHCP_START,$DHCP_END,255.255.255.0,24h
+address=/#/$AP_IP
 EOF
-    info "dnsmasq configured."
+info "dnsmasq.conf written."
 
-    # ── Enable services ──────────────────────────────────────────────────────
-    systemctl unmask hostapd
-    systemctl enable hostapd dnsmasq
-    info "Legacy services enabled."
-fi
+# ── Enable Services ─────────────────────────────────────────────────────────
+section "Enabling Services"
+systemctl unmask hostapd || true
+systemctl enable hostapd dnsmasq
 
-# ── Update config.yaml to use ap mode ────────────────────────────────────────
+# ── Update config.yaml to use ap mode ───────────────────────────────────────
 section "Updating config.yaml network mode to 'ap'"
 sed -i "s/^  mode: .*/  mode: \"ap\"/" "$CONFIG_FILE"
 info "config.yaml → network.mode = ap"
 
-# ── Post-setup password verification (NetworkManager path only) ───────────────
-if command -v nmcli &> /dev/null && nmcli con show "PigMonitor_AP" &> /dev/null; then
-    section "Password Verification"
-    NM_PSK=$(nmcli -s -g 802-11-wireless-security.psk con show PigMonitor_AP 2>/dev/null || echo "")
-    if [[ "$NM_PSK" == "$AP_PASS" ]]; then
-        info "✓ Password verified: NetworkManager and config.yaml agree."
-    else
-        warn "Password MISMATCH detected!"
-        warn "  config.yaml password : $AP_PASS"
-        warn "  NetworkManager PSK   : $NM_PSK"
-        warn "Use the NetworkManager password to connect your phone."
-    fi
-fi
-
 section "Summary"
 echo ""
-echo -e "  ${GREEN}✓${NC} AP Mode Configuration Applied"
+echo -e "  ${GREEN}✓${NC} Hostapd AP Mode Configuration Applied"
 echo -e "  ${GREEN}✓${NC} SSID        : $AP_SSID"
 echo -e "  ${GREEN}✓${NC} Password    : $AP_PASS"
 echo -e "  ${GREEN}✓${NC} Dashboard   : http://$AP_IP:5000 (after reboot)"
