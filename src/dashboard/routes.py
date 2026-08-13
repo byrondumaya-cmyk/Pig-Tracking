@@ -19,7 +19,12 @@ from flask import Blueprint, Response, current_app, jsonify, render_template, re
 from src.config_loader import CONFIG_PATH
 
 # Create a blueprint for dashboard routes
-dashboard_bp = Blueprint('dashboard', __name__, template_folder='templates')
+dashboard_bp = Blueprint(
+    'dashboard',
+    __name__,
+    template_folder='templates',
+    static_folder='static',
+)
 
 # Startup time for uptime calculation
 _START_TIME = time.time()
@@ -658,4 +663,3 @@ def ap_info():
         "wifi_qr": wifi_qr,
         "dashboard_url": f"http://{ip}:5000"
     })
-

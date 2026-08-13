@@ -127,7 +127,7 @@
             // Poll for system status to update the green/red dots
             setInterval(async () => {
                 try {
-                    const res = await fetch("{{ url_for('dashboard.get_system_status') }}");
+                    const res = await fetch("{{ url_for('dashboard.system_status') }}");
                     if (res.ok) {
                         const status = await res.json();
                         updateStatusDots(status);
