@@ -105,20 +105,28 @@ if command -v nmcli &> /dev/null && systemctl is-active --quiet NetworkManager; 
     # Create the base connection (disabling IPv6 to prevent immediate drops)
     nmcli con add type wifi ifname wlan0 mode ap con-name PigMonitor_AP ssid "$AP_SSID" ipv4.method shared ipv4.addresses "$AP_IP/24" ipv6.method disabled
     
-    # Apply security and radio fixes for maximum phone compatibility:
-    # - wifi-sec.pmf 1        : Disable Protected Management Frames (fixes iPhone connection drops)
-    # - 802-11-wireless.band bg : Force 2.4GHz band (prevents 5GHz driver crashes on Pi)
-    # - 802-11-wireless.channel 6 : Prevent auto-channel selection failures (common on Pi)
-    # - wifi-sec.proto rsn, ccmp  : Strictly enforce WPA2-AES (no WPA3 mixed mode)
-    nmcli con modify PigMonitor_AP \
-        wifi-sec.key-mgmt wpa-psk \
-        wifi-sec.psk "$AP_PASS" \
-        wifi-sec.pmf 1 \
-        wifi-sec.proto rsn \
-        wifi-sec.pairwise ccmp \
-        wifi-sec.group ccmp \
-        802-11-wireless.band bg \
-        802-11-wireless.channel 6
+    if [[ "$AP_PASS" == "OPEN" ]]; then
+        info "Configuring OPEN (unsecured) network..."
+        nmcli con modify PigMonitor_AP \
+            wifi-sec.key-mgmt none \
+            802-11-wireless.band bg \
+            802-11-wireless.channel 6
+    else
+        info "Configuring WPA2-PSK secured network..."
+        # Apply security and radio fixes for maximum phone compatibility:
+        # - wifi-sec.pmf 1        : Disable Protected Management Frames (fixes iPhone connection drops)
+        # - 802-11-wireless.channel 6 : Prevent auto-channel selection failures (common on Pi)
+        # - wifi-sec.proto rsn, ccmp  : Strictly enforce WPA2-AES (no WPA3 mixed mode)
+        nmcli con modify PigMonitor_AP \
+            wifi-sec.key-mgmt wpa-psk \
+            wifi-sec.psk "$AP_PASS" \
+            wifi-sec.pmf 1 \
+            wifi-sec.proto rsn \
+            wifi-sec.pairwise ccmp \
+            wifi-sec.group ccmp \
+            802-11-wireless.band bg \
+            802-11-wireless.channel 6
+    fi
     
     # Optional: ensure NM automatically starts it on boot
     nmcli con modify PigMonitor_AP connection.autoconnect yes
