@@ -95,24 +95,10 @@ sudo scripts/setup_ap.sh
 ### AP → LAN
 
 ```bash
-# 1. Disable AP services
-sudo systemctl disable hostapd dnsmasq
-sudo systemctl stop hostapd dnsmasq
+# Restore NetworkManager control of wlan0 and list available Wi-Fi networks.
+sudo scripts/switch_to_lan.sh
 
-# 2. Remove the static IP block from dhcpcd.conf
-sudo nano /etc/dhcpcd.conf
-# Delete the lines between "# BEGIN pig_monitor_ap" and "# END pig_monitor_ap"
-
-# 3. Update config.yaml
-nano config/config.yaml
-# Set: network.mode: "lan"
-
-# 4. Reconnect to your router (via raspi-config or wpa_supplicant)
-sudo raspi-config
-# → System Options → Wireless LAN → enter your router credentials
-
-# 5. Reboot
-sudo reboot
+# Then connect using the command printed by the script.
 ```
 
 ---
