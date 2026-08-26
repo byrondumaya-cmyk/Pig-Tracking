@@ -61,6 +61,9 @@ class GSMNotifier:
         self._last_sent: dict[str, datetime] = {}   # alert_type → last sent time
         self._serial: Optional[object] = None
         self._repository = repository  # For dynamic recipient lookup
+        
+        import threading
+        self._lock = threading.Lock()
 
         if _SERIAL_AVAILABLE:
             try:
@@ -82,21 +85,53 @@ class GSMNotifier:
         """Send an AT command and check for expected response."""
         if not self._serial:
             return True
+        with self._lock:
+            try:
+                self._serial.write((command + "\r\n").encode())
+                deadline = time.time() + timeout
+                response = ""
+                while time.time() < deadline:
+                    if self._serial.in_waiting:
+                        response += self._serial.read(self._serial.in_waiting).decode(errors="ignore")
+                    if expected in response:
+                        return True
+                    time.sleep(0.1)
+                logger.warning(f"AT command '{command}' timed out. Response: {response!r}")
+                return False
+            except Exception as e:
+                logger.error(f"AT command error: {e}")
+                return False
+
+    def send_diagnostic_test(self, number: str) -> dict:
+        """
+        Send a diagnostic test SMS and return exact delivery confirmation level.
+        Does not interact with alert cooldowns or normal alert state.
+        Returns: {"status": str, "detail": str}
+        """
+        if not self._serial:
+            logger.info(f"[SIM] Diagnostic test SMS to {number}")
+            return {"status": "simulated", "detail": "GSM module running in simulation mode. SMS acknowledged by simulator."}
+            
         try:
-            self._serial.write((command + "\r\n").encode())
-            deadline = time.time() + timeout
-            response = ""
-            while time.time() < deadline:
-                if self._serial.in_waiting:
-                    response += self._serial.read(self._serial.in_waiting).decode(errors="ignore")
-                if expected in response:
-                    return True
-                time.sleep(0.1)
-            logger.warning(f"AT command '{command}' timed out. Response: {response!r}")
-            return False
+            cmd = f'AT+CMGS="{number}"'
+            if not self._send_at(cmd, expected=">", timeout=10.0):
+                return {"status": "error", "detail": "GSM module failed to accept CMGS command."}
+            
+            message = "DIAGNOSTIC TEST: Pig Tracking System GSM module is responding."
+            with self._lock:
+                self._serial.write((message + chr(0x1A)).encode())
+            
+            # We wait for +CMGS: which means the module successfully transmitted it to the network.
+            # Real delivery receipts (AT+CNMI) are not currently implemented, so we state what we know.
+            success = self._send_at("", expected="+CMGS:", timeout=15.0)
+            
+            if success:
+                return {"status": "success", "detail": "Message submitted to GSM network (+CMGS acknowledged)."}
+            else:
+                return {"status": "error", "detail": "Module did not confirm submission (+CMGS timeout)."}
         except Exception as e:
-            logger.error(f"AT command error: {e}")
-            return False
+            logger.error(f"Diagnostic test failed: {e}")
+            return {"status": "error", "detail": f"Exception occurred: {str(e)}"}
 
     def _is_cooled_down(self, alert_type: str) -> bool:
         """Check if enough time has passed since the last alert of this type."""

@@ -133,7 +133,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!container) return;
             
             if (!data.alerts || data.alerts.length === 0) {
-                container.innerHTML = '<div class="alert-empty">No alerts found.</div>';
+                container.innerHTML = '<div class="alert-empty">No abnormal behavior detected.</div>';
                 if (alertBanner) alertBanner.classList.remove('animate-in', 'visible');
                 return;
             }

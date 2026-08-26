@@ -81,6 +81,9 @@ class SwineHealthMonitor:
         self.risk_engine = None
         self.repository = None
         self.dashboard_app = None
+        self.dht_sensor = None
+        self.gsm = None
+        self.pig_counter = None
 
     def setup(self) -> None:
         """Initialize all subsystems. Fails fast if critical components missing."""
@@ -251,10 +254,24 @@ class SwineHealthMonitor:
                 try:
                     pruned_det = self.repository.prune_detections(keep_days=7)
                     pruned_amb = self.repository.prune_ambient_readings(keep_days=30)
-                    if pruned_det or pruned_amb:
+                    
+                    # Prune snapshots older than 7 days
+                    import glob
+                    import os
+                    cutoff = now - (7 * 86400)
+                    pruned_snaps = 0
+                    for snap in glob.glob(os.path.join(self.cfg.health.snapshot_dir, "*.jpg")):
+                        if os.path.getmtime(snap) < cutoff:
+                            try:
+                                os.remove(snap)
+                                pruned_snaps += 1
+                            except Exception:
+                                pass
+
+                    if pruned_det or pruned_amb or pruned_snaps:
                         logger.info(
-                            "Retention prune: removed %d detections, %d ambient readings.",
-                            pruned_det, pruned_amb,
+                            "Retention prune: removed %d detections, %d ambient readings, %d snapshots.",
+                            pruned_det, pruned_amb, pruned_snaps
                         )
                 except Exception as exc:
                     logger.warning("Retention prune failed: %s", exc)
@@ -370,6 +387,22 @@ class SwineHealthMonitor:
                 logger.warning("DB write failed (detections): %s", db_exc)
 
             # --- Handle alerts ---
+            snapshot_path = None
+            if alerts and getattr(self.cfg.health, 'save_snapshot_on_alert', False):
+                import os
+                from datetime import datetime
+                ts_str = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
+                filename = f"alert_{ts_str}.jpg"
+                filepath = os.path.join(self.cfg.health.snapshot_dir, filename)
+                try:
+                    success = cv2.imwrite(filepath, frame)
+                    if success:
+                        snapshot_path = filepath
+                    else:
+                        logger.warning("Failed to save snapshot (imwrite returned False, possibly disk full)")
+                except Exception as exc:
+                    logger.warning("Failed to save snapshot: %s", exc)
+
             for alert in alerts:
                 try:
                     alert_id = self.repository.insert_alert(
@@ -382,6 +415,7 @@ class SwineHealthMonitor:
                         stationary_duration_sec=alert.stationary_duration_sec,
                         stationary_count=alert.stationary_count,
                         total_pig_count=alert.total_pig_count,
+                        snapshot_path=snapshot_path,
                     )
                 except Exception as db_exc:
                     logger.warning("DB write failed (alert insert): %s", db_exc)
@@ -421,7 +455,7 @@ class SwineHealthMonitor:
         """Start Flask dashboard in a daemon thread."""
         from src.dashboard.app import create_app
 
-        flask_app = create_app(self.cfg, self.repository)
+        flask_app = create_app(self.cfg, self.repository, self.gsm)
 
         def _run_flask():
             flask_app.run(

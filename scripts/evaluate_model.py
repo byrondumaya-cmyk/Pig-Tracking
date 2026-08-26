@@ -24,7 +24,7 @@ def main() -> None:
     print(" SWINE HEALTH MONITOR — Phase 5: Model Evaluation")
     print("============================================================\n")
 
-    weights_path = ROOT / "runs" / "detect" / "swine_behavior_v1_cpu_resume" / "weights" / "best.pt"
+    weights_path = ROOT / "models" / "best.pt"
     if not weights_path.exists():
         print(f"Error: Could not find weights at {weights_path}")
         sys.exit(1)

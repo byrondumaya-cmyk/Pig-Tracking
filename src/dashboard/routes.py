@@ -17,6 +17,9 @@ import yaml
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
 from src.config_loader import CONFIG_PATH
+from src.dashboard.sys_info import get_network_mode, get_ap_ssid, get_current_ip, get_storage_usage_pct
+from src.dashboard.auth import dev_required
+
 
 # Create a blueprint for dashboard routes
 dashboard_bp = Blueprint(
@@ -46,6 +49,7 @@ def video_feed():
 
 
 @dashboard_bp.route('/settings', methods=['GET', 'POST'])
+@dev_required
 def settings():
     """Settings Panel: Edit GSM numbers and risk thresholds live."""
     if request.method == 'POST':
@@ -160,6 +164,7 @@ def behavior_counts():
 
 
 @dashboard_bp.route('/api/resolve_alert/<int:alert_id>', methods=['POST'])
+@dev_required
 def resolve_alert(alert_id: int):
     """
     Farmer confirms they have inspected the pen.
@@ -191,12 +196,7 @@ def system_status():
     gsm_status = "enabled" if (cfg and cfg.gsm.enabled) else "disabled"
 
     # Storage: disk usage of data directory
-    try:
-        usage = shutil.disk_usage(Path("."))
-        used_pct = int(usage.used / usage.total * 100)
-        storage_str = f"{used_pct}%"
-    except Exception:
-        storage_str = "unknown"
+    storage_str = get_storage_usage_pct()
 
     # Uptime
     elapsed = int(time.time() - _START_TIME)
@@ -210,13 +210,18 @@ def system_status():
         model_path = Path(cfg.inference.model_path)
         model_name = f"YOLOv8n ({model_path.name})"
 
+    # Actual OS Network State
+    actual_net_mode = get_network_mode(fallback=cfg.network.mode if cfg else "unknown")
+    actual_ssid = get_ap_ssid(fallback=cfg.network.ap.ssid if cfg else None) if actual_net_mode == "ap" else None
+    actual_ip = get_current_ip(fallback=cfg.network.ap.ip if cfg else None)
+
     return jsonify({
         "camera": camera_status,
         "thermal": thermal_status,
         "gsm": gsm_status,
-        "network_mode": cfg.network.mode if cfg else "unknown",
-        "ap_ssid": cfg.network.ap.ssid if cfg else None,
-        "ap_ip": cfg.network.ap.ip if cfg else None,
+        "network_mode": actual_net_mode,
+        "ap_ssid": actual_ssid,
+        "ap_ip": actual_ip,
         "storage": storage_str,
         "uptime": uptime_str,
         "ai_model": model_name,
@@ -236,6 +241,7 @@ def get_recipients():
 
 
 @dashboard_bp.route('/api/recipients', methods=['POST'])
+@dev_required
 def add_recipient():
     """Add a new alert recipient."""
     repo = current_app.config.get("SHM_REPO")
@@ -260,6 +266,7 @@ def add_recipient():
 
 
 @dashboard_bp.route('/api/recipients/<int:recipient_id>', methods=['DELETE'])
+@dev_required
 def remove_recipient(recipient_id: int):
     """Remove an alert recipient."""
     repo = current_app.config.get("SHM_REPO")
@@ -274,6 +281,7 @@ def remove_recipient(recipient_id: int):
 
 
 @dashboard_bp.route('/api/recipients/<int:recipient_id>/toggle', methods=['PATCH'])
+@dev_required
 def toggle_recipient(recipient_id: int):
     """Enable or disable a recipient."""
     repo = current_app.config.get("SHM_REPO")
@@ -316,6 +324,7 @@ def get_alert_config():
 
 
 @dashboard_bp.route('/api/alert_config', methods=['PATCH'])
+@dev_required
 def update_alert_config():
     """Update alert engine configuration."""
     repo = current_app.config.get("SHM_REPO")
@@ -406,6 +415,7 @@ def get_sms_templates():
 
 
 @dashboard_bp.route('/api/sms_templates', methods=['POST'])
+@dev_required
 def create_sms_template():
     """Create a new SMS message template."""
     repo = current_app.config.get("SHM_REPO")
@@ -432,6 +442,7 @@ def create_sms_template():
 
 
 @dashboard_bp.route('/api/sms_templates/<int:template_id>', methods=['PATCH'])
+@dev_required
 def update_sms_template(template_id):
     """Update an SMS message template."""
     repo = current_app.config.get("SHM_REPO")
@@ -453,6 +464,7 @@ def update_sms_template(template_id):
 
 
 @dashboard_bp.route('/api/sms_templates/<int:template_id>', methods=['DELETE'])
+@dev_required
 def delete_sms_template(template_id):
     """Delete an SMS message template."""
     repo = current_app.config.get("SHM_REPO")
@@ -499,6 +511,7 @@ def get_sms_log_dates():
 
 
 @dashboard_bp.route('/api/sms_logs/delete', methods=['POST'])
+@dev_required
 def delete_sms_logs():
     """Delete SMS logs before a specific date."""
     repo = current_app.config.get("SHM_REPO")
@@ -543,6 +556,7 @@ def get_system_time():
 
 
 @dashboard_bp.route('/api/time_sync', methods=['POST'])
+@dev_required
 def sync_system_time():
     """Synchronize system time (from NTP or manual)."""
     import subprocess
@@ -645,12 +659,13 @@ def ap_info():
     so the frontend can render a scannable Wi-Fi QR code.
     """
     cfg = current_app.config.get("SHM_CONFIG")
-    if not cfg or cfg.network.mode != "ap":
+    actual_net_mode = get_network_mode(fallback=cfg.network.mode if cfg else "unknown")
+    if not cfg or actual_net_mode != "ap":
         return jsonify({"ap_active": False})
 
-    ssid = cfg.network.ap.ssid
+    ssid = get_ap_ssid(fallback=cfg.network.ap.ssid)
     password = cfg.network.ap.password
-    ip = cfg.network.ap.ip
+    ip = get_current_ip(fallback=cfg.network.ap.ip)
 
     # WPA QR string — standard format used by iOS/Android camera apps
     wifi_qr = f"WIFI:T:WPA;S:{ssid};P:{password};;"
@@ -662,4 +677,41 @@ def ap_info():
         "ip": ip,
         "wifi_qr": wifi_qr,
         "dashboard_url": f"http://{ip}:5000"
+    })
+
+# --- Developer Diagnostic Tools ──────────────────────────────────────────────
+
+@dashboard_bp.route('/api/dev/gsm_test', methods=['POST'])
+@dev_required
+def gsm_diagnostic_test():
+    """
+    Developer diagnostic endpoint to verify GSM hardware integration.
+    Sends a test message without creating a fake health alert.
+    """
+    gsm = current_app.config.get("SHM_GSM")
+    if not gsm:
+        return jsonify({"status": "error", "detail": "GSM Notifier is not available (disabled or failed to load)."}), 503
+
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "detail": "Database repository unavailable."}), 503
+
+    # Use existing configured recipients
+    recipients = repo.get_enabled_recipients()
+    if not recipients:
+        return jsonify({"status": "error", "detail": "No enabled recipients configured. Add a recipient first."}), 400
+
+    results = {}
+    overall_status = "success"
+    
+    # Send test to all recipients
+    for number in recipients:
+        res = gsm.send_diagnostic_test(number)
+        results[number] = res
+        if res.get("status") == "error":
+            overall_status = "error"
+
+    return jsonify({
+        "status": overall_status,
+        "results": results
     })

@@ -108,6 +108,7 @@ class DashboardConfig:
     debug: bool = False
     stream_jpeg_quality: int = 70
     chart_window_minutes: int = 30
+    developer_password: str = "CHANGE_ME"  # Must be set securely before deployment
 
 
 @dataclass

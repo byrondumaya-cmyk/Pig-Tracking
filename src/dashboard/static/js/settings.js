@@ -48,11 +48,45 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clear-logs-btn').addEventListener('click', deleteOldLogs);
     
     document.getElementById('sync-ntp-btn').addEventListener('click', syncNtp);
+    
+    const gsmTestBtn = document.getElementById('gsm-test-btn');
+    if (gsmTestBtn) {
+        gsmTestBtn.addEventListener('click', testGsm);
+    }
 
     // Set today as max date for log filter
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('log-date-picker').max = today;
 });
+
+async function testGsm() {
+    const btn = document.getElementById('gsm-test-btn');
+    if (!confirm('Send a diagnostic GSM test message to all configured recipients? This will not create a health alert.')) return;
+    
+    btn.disabled = true;
+    const origText = btn.innerHTML;
+    btn.innerHTML = 'Testing...';
+    
+    try {
+        const data = await apiFetch('/api/dev/gsm_test', { method: 'POST' });
+        
+        let msg = `GSM Test: ${data.status.toUpperCase()}`;
+        if (data.results) {
+            const lines = [];
+            for (const [phone, res] of Object.entries(data.results)) {
+                lines.push(`${phone}: ${res.status.toUpperCase()} - ${res.detail}`);
+            }
+            alert(msg + '\n\n' + lines.join('\n'));
+        } else {
+            alert(msg + '\n' + (data.detail || 'No details.'));
+        }
+    } catch (e) {
+        showToast('GSM Test failed: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+    }
+}
 
 // ── Alert Config ────────────────────────────────────────────────────────────
 async function loadAlertConfig() {

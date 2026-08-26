@@ -17,13 +17,14 @@ from flask import Flask
 logger = logging.getLogger(__name__)
 
 
-def create_app(cfg, repository=None) -> Flask:
+def create_app(cfg, repository=None, gsm_notifier=None) -> Flask:
     """
     Flask application factory.
 
     Args:
         cfg: AppConfig object from config_loader.
         repository: SwineRepository instance for database access.
+        gsm_notifier: Optional GSMNotifier instance for testing.
 
     Returns:
         Configured Flask application.
@@ -33,6 +34,7 @@ def create_app(cfg, repository=None) -> Flask:
     # Attach config and repo to app context so routes can access them
     app.config["SHM_CONFIG"] = cfg
     app.config["SHM_REPO"] = repository
+    app.config["SHM_GSM"] = gsm_notifier
 
     # Register blueprints
     from src.dashboard.routes import dashboard_bp
