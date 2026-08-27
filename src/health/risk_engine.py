@@ -136,6 +136,25 @@ class HerdRiskEngine:
         # Per-alert-type timestamp of last emitted alert, for engine-level deduplication
         self._last_alert_time: dict[str, float] = {}
 
+    def reload_config(self) -> None:
+        """Reload runtime configuration from the database."""
+        if not self._repository:
+            return
+            
+        try:
+            cfg = self._repository.get_herd_risk_engine_config()
+            self._alert_minutes = cfg.get("stationary_alert_minutes", self._alert_minutes)
+            self._heat_stress_minutes = cfg.get("stationary_heat_stress_minutes", self._heat_stress_minutes)
+            self._fever_delta = cfg.get("fever_delta_threshold_c", self._fever_delta)
+            self._pop_ratio = cfg.get("population_lethargy_ratio", self._pop_ratio)
+            self._pop_persist = cfg.get("population_persist_seconds", self._pop_persist)
+            self._thi_threshold = cfg.get("thi_heat_stress_threshold", self._thi_threshold)
+            self._cooldown_sec = cfg.get("cooldown_minutes", self._cooldown_sec / 60.0) * 60.0
+            self._individual_alert_enabled = cfg.get("alert_individual_enabled", self._individual_alert_enabled)
+            self._population_alert_enabled = cfg.get("alert_population_enabled", self._population_alert_enabled)
+        except Exception as e:
+            logger.warning(f"[HerdRiskEngine] Failed to reload config: {e}")
+
     def _get_stationary_threshold(self, ambient: Optional["AmbientReading"]) -> float:
         """Return the stationary threshold in seconds, adapted for THI."""
         if ambient and ambient.thi > self._thi_threshold:

@@ -246,10 +246,17 @@ class SwineHealthMonitor:
         ambient = None
         dht_last_read = 0.0
         retention_delay = 0.0   # When to next run DB retention pruning
+        config_reload_delay = 0.0 # When to next reload config
 
         while self._running:
-            # --- Periodic database retention pruning (every 6 h) ---
             now = time.time()
+            
+            # --- Config Reload (every 10s) ---
+            if now >= config_reload_delay:
+                self.risk_engine.reload_config()
+                config_reload_delay = now + 10.0
+
+            # --- Periodic database retention pruning (every 6 h) ---
             if now >= retention_delay and self.repository:
                 try:
                     pruned_det = self.repository.prune_detections(keep_days=self.cfg.storage.detections_retention_days)
