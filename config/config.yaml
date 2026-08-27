@@ -73,7 +73,7 @@ dht22:
 gsm:
   enabled: true
   serial_port: "/dev/serial0"
-  baud_rate: 115200
+  baud_rate: 9600
   phone_numbers:            # List — supports multiple recipients
     - "+63XXXXXXXXXX"       # CHANGE BEFORE DEPLOYMENT
   cooldown_minutes: 5       # Min gap between repeated SMS alerts
