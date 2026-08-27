@@ -266,18 +266,28 @@ async function loadSmsTemplates() {
         }
         
         list.innerHTML = data.templates.map(t => `
-            <div class="panel" style="margin-bottom: var(--space-4);">
-                <div class="panel__header">
-                    <h3 class="panel__title">${escapeHtml(t.name)}</h3>
-                    <span class="text-xs font-mono text-subtle">${t.alert_type}</span>
+            <div class="panel" style="margin-bottom: var(--space-4); border-left: 4px solid ${t.enabled ? 'var(--color-primary)' : 'transparent'};">
+                <div class="panel__header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <h3 class="panel__title" style="display: inline-block; margin-right: 8px;">${escapeHtml(t.name)}</h3>
+                        <span class="text-xs font-mono text-subtle" style="background: var(--bg-2); padding: 2px 6px; border-radius: 4px;">${t.alert_type}</span>
+                    </div>
+                    <div class="toggle-wrap" style="margin: 0;">
+                        <label class="toggle">
+                            <input type="checkbox" ${t.enabled ? 'checked' : ''} onchange="toggleTemplate(${t.id}, this.checked)">
+                            <div class="toggle__track"></div>
+                        </label>
+                    </div>
                 </div>
                 <div class="panel__body">
-                    <p class="font-mono text-sm" style="margin-bottom: var(--space-3); color: var(--text-primary);">
+                    <p class="font-mono text-sm" style="margin-bottom: var(--space-3); color: var(--text-primary); padding: var(--space-3); background: var(--bg-1); border-radius: 4px;">
                         ${escapeHtml(t.message_body)}
                     </p>
-                    <button class="btn btn-ghost" onclick="editTemplate(${t.id}, '${escapeHtml(t.message_body)}')">
-                        Edit Message
-                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-ghost" onclick="editTemplate(${t.id}, '${escapeHtml(t.message_body)}')">
+                            Edit Text
+                        </button>
+                    </div>
                 </div>
             </div>
         `).join('');
@@ -303,6 +313,55 @@ window.editTemplate = async function(id, currentMsg) {
         await loadSmsTemplates();
     } catch (e) {
         showToast('Failed to update template', 'error');
+    }
+};
+
+window.toggleTemplate = async function(id, enabled) {
+    try {
+        await apiFetch(`/api/sms_templates/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ enabled: enabled })
+        });
+        showToast(enabled ? 'Template activated' : 'Template disabled', 'success');
+        await loadSmsTemplates();
+    } catch (e) {
+        showToast('Failed to toggle template', 'error');
+    }
+};
+
+window.addTemplate = async function() {
+    const name = document.getElementById('new-template-name').value.trim();
+    const type = document.getElementById('new-template-type').value;
+    const body = document.getElementById('new-template-body').value.trim();
+    
+    if (!name || !body) {
+        showToast('Name and Message Body are required', 'error');
+        return;
+    }
+    
+    const btn = document.getElementById('add-template-btn');
+    btn.disabled = true;
+    
+    try {
+        await apiFetch('/api/sms_templates', {
+            method: 'POST',
+            body: JSON.stringify({
+                name: name,
+                alert_type: type,
+                message_body: body
+            })
+        });
+        showToast('Template created', 'success');
+        
+        // Reset form
+        document.getElementById('new-template-name').value = '';
+        document.getElementById('new-template-body').value = '';
+        
+        await loadSmsTemplates();
+    } catch (e) {
+        showToast('Failed to create template: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
     }
 };
 

@@ -432,7 +432,7 @@ class SwineHealthMonitor:
                         sent = self.gsm.send_alert(
                             phone_numbers=phone_numbers,
                             alert_type=alert.alert_type.value,
-                            message=alert.sms_message(),
+                            message=alert.formatted_sms or alert.sms_message(),
                         )
                         if sent:
                             # Mark SMS dispatched — does NOT resolve the alert.

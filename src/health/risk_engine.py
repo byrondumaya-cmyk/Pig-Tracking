@@ -57,18 +57,30 @@ class AlertEvent:
     stationary_count: Optional[int]
     total_pig_count: Optional[int]
     timestamp: float = 0.0
+    formatted_sms: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.timestamp == 0.0:
             self.timestamp = time.time()
 
-    def sms_message(self) -> str:
+    def sms_message(self, custom_template: Optional[str] = None) -> str:
         """Format a concise SMS message (target < 160 chars)."""
         barn = f"{self.ambient_temp_c:.1f}C/{self.ambient_rh:.0f}%"
+        mins = int((self.stationary_duration_sec or 0) / 60)
+        zone_str = f"{self.pig_zone_temp_c:.1f}C" if self.pig_zone_temp_c is not None else "N/A"
+        
+        if custom_template:
+            msg = custom_template
+            msg = msg.replace("{barn_temp}", f"{self.ambient_temp_c:.1f}")
+            msg = msg.replace("{barn_humidity}", f"{self.ambient_rh:.0f}")
+            msg = msg.replace("{barn_thi}", f"{self.ambient_thi:.1f}")
+            msg = msg.replace("{zone_temp}", zone_str)
+            msg = msg.replace("{duration}", str(mins))
+            msg = msg.replace("{stationary_count}", str(self.stationary_count or 0))
+            msg = msg.replace("{total_count}", str(self.total_pig_count or 0))
+            return msg
+
         if self.alert_type == AlertType.INDIVIDUAL:
-            mins = int((self.stationary_duration_sec or 0) / 60)
-            # Guard against None zone temp (e.g. thermal sensor unavailable)
-            zone_str = f"{self.pig_zone_temp_c:.1f}C" if self.pig_zone_temp_c is not None else "N/A"
             return (
                 f"SWINE ALERT: Sick pig in pen. "
                 f"Stationary {mins}m, Zone:{zone_str}, "
@@ -135,6 +147,27 @@ class HerdRiskEngine:
         self._population_alert_enabled = alert_population_enabled
         # Per-alert-type timestamp of last emitted alert, for engine-level deduplication
         self._last_alert_time: dict[str, float] = {}
+        # Cached active SMS templates per alert type
+        self._sms_templates: dict[str, str] = {}
+        
+        # Initial load of templates
+        if self._repository:
+            self._reload_sms_templates()
+
+    def _reload_sms_templates(self) -> None:
+        """Fetch the active SMS templates from the database."""
+        if not self._repository:
+            return
+        try:
+            t_indiv = self._repository.get_active_sms_template(AlertType.INDIVIDUAL.value)
+            if t_indiv:
+                self._sms_templates[AlertType.INDIVIDUAL.value] = t_indiv["message_body"]
+                
+            t_pop = self._repository.get_active_sms_template(AlertType.POPULATION.value)
+            if t_pop:
+                self._sms_templates[AlertType.POPULATION.value] = t_pop["message_body"]
+        except Exception as e:
+            logger.warning(f"[HerdRiskEngine] Failed to load SMS templates: {e}")
 
     def reload_config(self) -> None:
         """Reload runtime configuration from the database."""
@@ -152,6 +185,8 @@ class HerdRiskEngine:
             self._cooldown_sec = cfg.get("cooldown_minutes", self._cooldown_sec / 60.0) * 60.0
             self._individual_alert_enabled = cfg.get("alert_individual_enabled", self._individual_alert_enabled)
             self._population_alert_enabled = cfg.get("alert_population_enabled", self._population_alert_enabled)
+            
+            self._reload_sms_templates()
         except Exception as e:
             logger.warning(f"[HerdRiskEngine] Failed to reload config: {e}")
 
@@ -195,7 +230,7 @@ class HerdRiskEngine:
                     if time.time() - last_t < self._cooldown_sec:
                         break  # Cooldown active — skip this cycle
                     self._last_alert_time[AlertType.INDIVIDUAL.value] = time.time()
-                    alerts.append(AlertEvent(
+                    alert = AlertEvent(
                         alert_type=AlertType.INDIVIDUAL,
                         trigger_reason="stationary_fever",
                         ambient_temp_c=ambient_temp,
@@ -205,7 +240,9 @@ class HerdRiskEngine:
                         stationary_duration_sec=track.stationary_duration_sec,
                         stationary_count=None,
                         total_pig_count=None,
-                    ))
+                    )
+                    alert.formatted_sms = alert.sms_message(self._sms_templates.get(AlertType.INDIVIDUAL.value))
+                    alerts.append(alert)
                     logger.warning(
                         f"[Channel 1] Track {track.track_id} stationary "
                         f"{track.stationary_duration_sec/60:.1f}m, "
@@ -224,7 +261,7 @@ class HerdRiskEngine:
             last_t = self._last_alert_time.get(AlertType.POPULATION.value, 0.0)
             if time.time() - last_t >= self._cooldown_sec:
                 self._last_alert_time[AlertType.POPULATION.value] = time.time()
-                alerts.append(AlertEvent(
+                alert = AlertEvent(
                     alert_type=AlertType.POPULATION,
                     trigger_reason="herd_lethargy",
                     ambient_temp_c=ambient_temp,
@@ -234,7 +271,9 @@ class HerdRiskEngine:
                     stationary_duration_sec=None,
                     stationary_count=population_snapshot.stationary_count,
                     total_pig_count=population_snapshot.total_detected,
-                ))
+                )
+                alert.formatted_sms = alert.sms_message(self._sms_templates.get(AlertType.POPULATION.value))
+                alerts.append(alert)
                 logger.warning(
                     f"[Channel 2] {population_snapshot.stationary_count}/"
                     f"{population_snapshot.total_detected} pigs stationary. ALERT."

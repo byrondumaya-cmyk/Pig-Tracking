@@ -433,6 +433,13 @@ class SwineRepository:
                 rows = con.execute(query).fetchall()
             return [dict(row) for row in rows]
 
+    def get_active_sms_template(self, alert_type: str) -> dict | None:
+        """Fetch the first enabled template for a given alert type."""
+        with _conn(self._path) as con:
+            query = "SELECT * FROM sms_templates WHERE alert_type = ? AND enabled = 1 LIMIT 1"
+            row = con.execute(query, (alert_type,)).fetchone()
+            return dict(row) if row else None
+
     def create_sms_template(self, alert_type: str, name: str, message_body: str) -> int:
         """Create a new SMS message template. Returns template ID."""
         with _conn(self._path) as con:

@@ -150,8 +150,45 @@
     <!-- TAB: Messages -->
     <div id="tab-messages" class="tab-panel">
         <div class="info-box">
-            Customize SMS templates. Variables like {zone_temp} or {duration} will be replaced with real data.
+            <strong>Template Variables Guide</strong><br>
+            Use these exact placeholders in your templates to inject live data:<br>
+            <code style="background:var(--bg-3); padding:2px 4px; border-radius:4px;">{barn_temp}</code> - Barn Temp (°C)<br>
+            <code style="background:var(--bg-3); padding:2px 4px; border-radius:4px;">{barn_humidity}</code> - Barn Humidity (%)<br>
+            <code style="background:var(--bg-3); padding:2px 4px; border-radius:4px;">{barn_thi}</code> - Temperature Humidity Index<br>
+            <code style="background:var(--bg-3); padding:2px 4px; border-radius:4px;">{zone_temp}</code> - Thermal Temp of the Pig (°C)<br>
+            <code style="background:var(--bg-3); padding:2px 4px; border-radius:4px;">{duration}</code> - Minutes the pig was stationary<br>
+            <code style="background:var(--bg-3); padding:2px 4px; border-radius:4px;">{stationary_count}</code> - Number of pigs down (Population Alert)<br>
+            <code style="background:var(--bg-3); padding:2px 4px; border-radius:4px;">{total_count}</code> - Total pigs detected (Population Alert)<br>
         </div>
+
+        <div class="panel" style="margin-bottom: var(--space-5);">
+            <div class="panel__header">
+                <h3 class="panel__title">Create New Template</h3>
+            </div>
+            <div class="panel__body">
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label>Template Name</label>
+                        <input type="text" id="new-template-name" class="form-control" placeholder="e.g. Fever Alert Custom">
+                    </div>
+                    <div class="form-group">
+                        <label>Alert Type</label>
+                        <select id="new-template-type" class="form-control">
+                            <option value="individual">Individual Pig (Fever/Stationary)</option>
+                            <option value="population">Population Lethargy</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Message Body</label>
+                    <textarea id="new-template-body" class="form-control" rows="3" placeholder="SWINE ALERT: Pig is down for {duration}m with zone temp {zone_temp}"></textarea>
+                </div>
+                <button class="btn btn-primary" id="add-template-btn" onclick="addTemplate()">Create Template</button>
+            </div>
+        </div>
+        
+        <h3 style="margin-bottom: var(--space-3); color: var(--text-primary);">Saved Templates</h3>
+        <p class="text-subtle text-sm" style="margin-bottom: var(--space-4);">Toggle a template ON to make it the active message for that alert type. Only one can be active at a time.</p>
         
         <div id="templates-list">
             <!-- Populated by JS -->
