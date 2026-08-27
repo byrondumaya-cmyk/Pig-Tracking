@@ -67,7 +67,7 @@ class AlertEvent:
         """Format a concise SMS message (target < 160 chars)."""
         barn = f"{self.ambient_temp_c:.1f}C/{self.ambient_rh:.0f}%"
         mins = int((self.stationary_duration_sec or 0) / 60)
-        zone_str = f"{self.pig_zone_temp_c:.1f}C" if self.pig_zone_temp_c is not None else "N/A"
+        zone_str = f"{self.pig_zone_temp_c:.1f}" if self.pig_zone_temp_c is not None else "N/A"
         
         if custom_template:
             msg = custom_template

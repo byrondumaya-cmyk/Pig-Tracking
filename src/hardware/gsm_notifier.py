@@ -188,9 +188,14 @@ class GSMNotifier:
 
     def _send_sms(self, number: str, message: str) -> bool:
         """Send a single SMS to one recipient."""
+        # Sanitize message for GSM 7-bit / ASCII compatibility
+        # Replace common degree symbol first, then strip anything else non-ASCII
+        safe_msg = message.replace('°', ' deg')
+        safe_msg = safe_msg.encode('ascii', 'ignore').decode('ascii')
+
         if not self._serial:
             # Simulation: log what would have been sent
-            logger.info(f"[SIM] SMS to {number}: {message}")
+            logger.info(f"[SIM] SMS to {number}: {safe_msg}")
             return True
 
         try:
@@ -198,7 +203,7 @@ class GSMNotifier:
             if not self._send_at(cmd, expected=">", timeout=10.0):
                 return False
             # Send message body followed by Ctrl+Z (0x1A) to send
-            self._serial.write((message + chr(0x1A)).encode())
+            self._serial.write((safe_msg + chr(0x1A)).encode('ascii'))
             return self._send_at("", expected="+CMGS:", timeout=15.0)
         except Exception as e:
             logger.error(f"SMS send to {number} failed: {e}")
