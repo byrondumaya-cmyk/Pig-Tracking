@@ -434,10 +434,11 @@ class SwineHealthMonitor:
                         phone_numbers = self.cfg.gsm.phone_numbers if hasattr(self.cfg.gsm, 'phone_numbers') else []
 
                     if phone_numbers:
+                        sms_message = alert.formatted_sms or alert.sms_message()
                         sent = self.gsm.send_alert(
                             phone_numbers=phone_numbers,
                             alert_type=alert.alert_type.value,
-                            message=alert.formatted_sms or alert.sms_message(),
+                            message=sms_message,
                         )
                         if sent:
                             # Mark SMS dispatched — does NOT resolve the alert.
@@ -446,6 +447,18 @@ class SwineHealthMonitor:
                                 self.repository.mark_sms_sent(alert_id, phone_numbers)
                             except Exception as db_exc:
                                 logger.warning("DB write failed (mark_sms_sent): %s", db_exc)
+                            # Write a log entry per recipient for the Dispatch History table
+                            for phone in phone_numbers:
+                                try:
+                                    self.repository.create_sms_log(
+                                        alert_type=alert.alert_type.value,
+                                        recipient_phone=phone,
+                                        message_body=sms_message,
+                                        status="sent",
+                                        pen_alert_id=alert_id,
+                                    )
+                                except Exception as db_exc:
+                                    logger.warning("DB write failed (sms_log): %s", db_exc)
 
             # --- Update shared frame buffer for dashboard stream ---
             from src.dashboard.stream import FrameBuffer

@@ -85,9 +85,10 @@ def settings():
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 400
 
+    from datetime import date
     with open(CONFIG_PATH, "r") as f:
         config = yaml.safe_load(f)
-    return render_template('settings.html', config=config)
+    return render_template('settings.html', config=config, today=date.today().isoformat())
 
 
 # --- Developer API Endpoints --------------------------------
@@ -224,6 +225,52 @@ def serve_snapshot(filename):
     # Path is relative to project root or absolute, send_from_directory needs absolute
     snapshot_dir = os.path.abspath(cfg.health.snapshot_dir)
     return send_from_directory(snapshot_dir, filename)
+
+
+@dashboard_bp.route('/api/sms_logs')
+def get_sms_logs():
+    """
+    Returns SMS dispatch history.
+    Query params:
+      ?date=YYYY-MM-DD  → filter by specific date
+      ?days=N           → filter by last N days (default 7)
+    """
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"logs": []}), 200
+
+    date_str = request.args.get("date")
+    try:
+        if date_str:
+            logs = repo.get_sms_logs_by_date(date_str)
+        else:
+            days = int(request.args.get("days", 7))
+            logs = repo.get_sms_logs(days_back=days)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify({"logs": logs})
+
+
+@dashboard_bp.route('/api/sms_logs/delete', methods=['POST'])
+@dev_required
+def delete_sms_logs():
+    """Delete SMS log entries before a specified date."""
+    repo = current_app.config.get("SHM_REPO")
+    if not repo:
+        return jsonify({"status": "error", "message": "Repository unavailable"}), 503
+
+    data = request.get_json(silent=True) or {}
+    before_date = data.get("before_date")
+    if not before_date:
+        return jsonify({"status": "error", "message": "before_date is required (YYYY-MM-DD)"}), 400
+
+    try:
+        deleted = repo.delete_sms_logs_before(before_date)
+        return jsonify({"status": "success", "message": f"Deleted {deleted} log entries before {before_date}."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 
 @dashboard_bp.route('/api/system_status')
