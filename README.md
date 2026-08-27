@@ -107,6 +107,17 @@ python3 src/main.py
 - **LAN mode**: Open browser → `http://[pi-ip-address]:5000`
 - **AP mode**: Connect to WiFi `PigMonitor_AP` → Open `http://192.168.4.1:5000`
 
+### 7. Run E2E Tests (Local Windows PC only)
+
+```bash
+# Install test dependencies
+pip install -r requirements-test.txt
+# Install Playwright browsers
+playwright install chromium
+# Run the test suite
+pytest tests/e2e/
+```
+
 ---
 
 ## 📁 Project Structure
