@@ -389,13 +389,16 @@ class SwineHealthMonitor:
             if alerts and getattr(self.cfg.health, 'save_snapshot_on_alert', False):
                 import os
                 from datetime import datetime
+                from src.dashboard.stream import _annotate_frame
                 ts_str = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
                 filename = f"alert_{ts_str}.jpg"
                 snapshot_dir = self.cfg.health.snapshot_dir
                 filepath = os.path.join(snapshot_dir, filename)
                 try:
                     os.makedirs(snapshot_dir, exist_ok=True)
-                    success = cv2.imwrite(filepath, frame)
+                    # Annotate a copy of the frame before saving so the snapshot includes bounding boxes
+                    annotated_frame = _annotate_frame(frame.copy(), tracked_pigs, fps_display)
+                    success = cv2.imwrite(filepath, annotated_frame)
                     if success:
                         snapshot_path = filepath
                     else:
