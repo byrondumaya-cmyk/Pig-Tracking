@@ -160,6 +160,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const resolveBtn = !alert.resolved 
                     ? `<button class="btn btn-resolve" onclick="resolveAlert('${alert.id}', this)">Resolve</button>` 
                     : '';
+                    
+                const smsBadge = alert.sms_sent 
+                    ? `<span class="badge badge-success" style="margin-left: 8px; font-size: 0.75rem; padding: 2px 6px; border-radius: 4px; background: rgba(46,160,67,0.2); color: #3fb950; border: 1px solid rgba(46,160,67,0.4);">📱 SMS Dispatched</span>` 
+                    : '';
+                    
+                const snapshotBtn = alert.snapshot_path 
+                    ? `<a href="/snapshots/${alert.snapshot_path.split(/[\\/]/).pop()}" target="_blank" class="btn btn-ghost" style="padding: 4px 8px; font-size: 0.8rem; margin-right: 8px;">📸 Snapshot</a>` 
+                    : '';
 
                 html += `
                     <div class="${rowClass}" id="alert-row-${alert.id}">
@@ -167,9 +175,10 @@ document.addEventListener('DOMContentLoaded', () => {
                         <div class="alert-row__body">
                             <div class="alert-row__type">${alert.alert_type}</div>
                             <div class="alert-row__msg">${alert.message}</div>
-                            <div class="alert-row__time">${alert.timestamp}</div>
+                            <div class="alert-row__time">${alert.timestamp}${smsBadge}</div>
                         </div>
-                        <div class="alert-row__actions">
+                        <div class="alert-row__actions" style="display: flex; align-items: center;">
+                            ${snapshotBtn}
                             ${resolveBtn}
                         </div>
                     </div>

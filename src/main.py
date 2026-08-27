@@ -391,8 +391,10 @@ class SwineHealthMonitor:
                 from datetime import datetime
                 ts_str = datetime.utcnow().strftime('%Y%m%d_%H%M%S')
                 filename = f"alert_{ts_str}.jpg"
-                filepath = os.path.join(self.cfg.health.snapshot_dir, filename)
+                snapshot_dir = self.cfg.health.snapshot_dir
+                filepath = os.path.join(snapshot_dir, filename)
                 try:
+                    os.makedirs(snapshot_dir, exist_ok=True)
                     success = cv2.imwrite(filepath, frame)
                     if success:
                         snapshot_path = filepath

@@ -178,6 +178,7 @@ def pen_alerts():
                 ),
                 "resolved": bool(r["resolved"]),
                 "sms_sent": bool(r.get("sms_sent", False)),
+                "snapshot_path": r.get("snapshot_path"),
             }
             for r in rows
         ]
@@ -210,6 +211,19 @@ def resolve_alert(alert_id: int):
         return jsonify({"status": "error", "message": "Repository unavailable"}), 503
     repo.resolve_alert(alert_id)
     return jsonify({"status": "success", "alert_id": alert_id})
+
+
+@dashboard_bp.route('/snapshots/<filename>')
+def serve_snapshot(filename):
+    """Serve saved alert snapshot images."""
+    from flask import send_from_directory
+    cfg = current_app.config.get("SHM_CONFIG")
+    if not cfg:
+        return "Config not loaded", 500
+    
+    # Path is relative to project root or absolute, send_from_directory needs absolute
+    snapshot_dir = os.path.abspath(cfg.health.snapshot_dir)
+    return send_from_directory(snapshot_dir, filename)
 
 
 @dashboard_bp.route('/api/system_status')
