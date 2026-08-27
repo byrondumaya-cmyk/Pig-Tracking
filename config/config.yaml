@@ -110,6 +110,13 @@ database:
   # How often to commit buffered writes (in seconds)
   flush_interval_seconds: 5
 
+# ----- Storage Management -----------------------------------
+storage:
+  detections_retention_days: 7
+  ambient_retention_days: 30
+  snapshots_retention_days: 7
+
+
 # ----- Dashboard (Flask) ------------------------------------
 dashboard:
   host: "0.0.0.0"      # Listen on all interfaces (LAN + AP)

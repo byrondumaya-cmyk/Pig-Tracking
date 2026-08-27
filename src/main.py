@@ -252,21 +252,12 @@ class SwineHealthMonitor:
             now = time.time()
             if now >= retention_delay and self.repository:
                 try:
-                    pruned_det = self.repository.prune_detections(keep_days=7)
-                    pruned_amb = self.repository.prune_ambient_readings(keep_days=30)
-                    
-                    # Prune snapshots older than 7 days
-                    import glob
-                    import os
-                    cutoff = now - (7 * 86400)
-                    pruned_snaps = 0
-                    for snap in glob.glob(os.path.join(self.cfg.health.snapshot_dir, "*.jpg")):
-                        if os.path.getmtime(snap) < cutoff:
-                            try:
-                                os.remove(snap)
-                                pruned_snaps += 1
-                            except Exception:
-                                pass
+                    pruned_det = self.repository.prune_detections(keep_days=self.cfg.storage.detections_retention_days)
+                    pruned_amb = self.repository.prune_ambient_readings(keep_days=self.cfg.storage.ambient_retention_days)
+                    pruned_snaps = self.repository.prune_snapshots(
+                        keep_days=self.cfg.storage.snapshots_retention_days,
+                        snapshot_dir=self.cfg.health.snapshot_dir
+                    )
 
                     if pruned_det or pruned_amb or pruned_snaps:
                         logger.info(

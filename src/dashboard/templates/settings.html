@@ -188,6 +188,42 @@
                 </div>
             </div>
         </div>
+
+        <div class="panel" style="margin-top: var(--space-5);">
+            <div class="panel__header">
+                <h3 class="panel__title">Storage Management</h3>
+            </div>
+            <div class="panel__body">
+                <div class="info-box" style="margin-bottom: var(--space-4);">
+                    Set how long historical data is kept before being automatically deleted. This prevents the SD card from filling up.
+                </div>
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label>Detections Retention (Days)</label>
+                        <input type="number" id="detections_retention_days" class="form-control" min="1" max="365" value="{{ config.storage.detections_retention_days }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Snapshots Retention (Days)</label>
+                        <input type="number" id="snapshots_retention_days" class="form-control" min="1" max="365" value="{{ config.storage.snapshots_retention_days }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Ambient Data Retention (Days)</label>
+                        <input type="number" id="ambient_retention_days" class="form-control" min="1" max="365" value="{{ config.storage.ambient_retention_days }}">
+                    </div>
+                </div>
+
+                <div style="display: flex; gap: var(--space-3); margin-top: var(--space-5);">
+                    <button class="btn btn-primary" id="save-storage-btn">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                        Save Storage Settings
+                    </button>
+                    <button class="btn btn-ghost" id="run-retention-btn" style="color: var(--color-danger);">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right:4px;"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        Run Retention Policy Now
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- TAB: Logs -->

@@ -54,6 +54,16 @@ document.addEventListener('DOMContentLoaded', () => {
         gsmTestBtn.addEventListener('click', testGsm);
     }
 
+    const saveStorageBtn = document.getElementById('save-storage-btn');
+    if (saveStorageBtn) {
+        saveStorageBtn.addEventListener('click', saveStorageConfig);
+    }
+    
+    const runRetentionBtn = document.getElementById('run-retention-btn');
+    if (runRetentionBtn) {
+        runRetentionBtn.addEventListener('click', runRetentionPolicy);
+    }
+
     // Set today as max date for log filter
     const today = new Date().toISOString().split('T')[0];
     document.getElementById('log-date-picker').max = today;
@@ -295,6 +305,51 @@ window.editTemplate = async function(id, currentMsg) {
         showToast('Failed to update template', 'error');
     }
 };
+
+// ── Storage Settings ────────────────────────────────────────────────────────
+async function saveStorageConfig() {
+    const btn = document.getElementById('save-storage-btn');
+    btn.disabled = true;
+    
+    const config = {
+        storage: {
+            detections_retention_days: parseInt(document.getElementById('detections_retention_days').value),
+            ambient_retention_days: parseInt(document.getElementById('ambient_retention_days').value),
+            snapshots_retention_days: parseInt(document.getElementById('snapshots_retention_days').value)
+        }
+    };
+
+    try {
+        const data = await apiFetch('/settings', {
+            method: 'POST',
+            body: JSON.stringify(config)
+        });
+        showToast('Storage settings saved', 'success');
+    } catch (e) {
+        showToast('Failed to save storage settings: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+async function runRetentionPolicy() {
+    if (!confirm('Run the data retention policy right now? This will immediately delete old data according to your configured limits above.')) return;
+    
+    const btn = document.getElementById('run-retention-btn');
+    btn.disabled = true;
+    const origText = btn.innerHTML;
+    btn.innerHTML = 'Running...';
+    
+    try {
+        const data = await apiFetch('/api/developer/run-retention', { method: 'POST' });
+        showToast(data.message, 'success');
+    } catch (e) {
+        showToast('Failed to run retention: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origText;
+    }
+}
 
 // ── SMS Logs ────────────────────────────────────────────────────────────────
 async function loadSmsLogs() {

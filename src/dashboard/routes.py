@@ -69,6 +69,14 @@ def settings():
                 for key in ('stationary_alert_minutes', 'fever_delta_threshold_c', 'population_lethargy_ratio'):
                     if key in h:
                         config['health'][key] = float(h[key])
+            if 'storage' in data:
+                s = data['storage']
+                if 'detections_retention_days' in s:
+                    config.setdefault('storage', {})['detections_retention_days'] = int(s['detections_retention_days'])
+                if 'ambient_retention_days' in s:
+                    config.setdefault('storage', {})['ambient_retention_days'] = int(s['ambient_retention_days'])
+                if 'snapshots_retention_days' in s:
+                    config.setdefault('storage', {})['snapshots_retention_days'] = int(s['snapshots_retention_days'])
 
             with open(CONFIG_PATH, "w") as f:
                 yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
@@ -81,6 +89,33 @@ def settings():
         config = yaml.safe_load(f)
     return render_template('settings.html', config=config)
 
+
+# --- Developer API Endpoints --------------------------------
+@dashboard_bp.route('/api/developer/run-retention', methods=['POST'])
+@dev_required
+def run_retention():
+    """Manually trigger the retention policy cleanup."""
+    try:
+        from src.database.repository import SwineRepository
+        cfg = current_app.config.get("SHM_CONFIG")
+        if not cfg:
+            return jsonify({"status": "error", "message": "Config not loaded"}), 500
+            
+        repo = SwineRepository(cfg.database.path)
+        
+        pruned_det = repo.prune_detections(keep_days=cfg.storage.detections_retention_days)
+        pruned_amb = repo.prune_ambient_readings(keep_days=cfg.storage.ambient_retention_days)
+        pruned_snaps = repo.prune_snapshots(
+            keep_days=cfg.storage.snapshots_retention_days,
+            snapshot_dir=cfg.health.snapshot_dir
+        )
+        
+        return jsonify({
+            "status": "success", 
+            "message": f"Deleted {pruned_det} detections, {pruned_amb} ambient readings, and {pruned_snaps} snapshots."
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
 
 # --- AJAX Polling Endpoints ---------------------------------
 

@@ -102,6 +102,13 @@ class DatabaseConfig:
 
 
 @dataclass
+class StorageConfig:
+    detections_retention_days: int = 7
+    ambient_retention_days: int = 30
+    snapshots_retention_days: int = 7
+
+
+@dataclass
 class DashboardConfig:
     host: str = "0.0.0.0"
     port: int = 5000
@@ -145,6 +152,7 @@ class AppConfig:
     gsm: GSMConfig = field(default_factory=GSMConfig)
     health: HybridHealthConfig = field(default_factory=HybridHealthConfig)
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    storage: StorageConfig = field(default_factory=StorageConfig)
     dashboard: DashboardConfig = field(default_factory=DashboardConfig)
     network: NetworkConfig = field(default_factory=NetworkConfig)
     classes: list = field(default_factory=list)
@@ -219,6 +227,7 @@ def load_config(path: Optional[Path] = None) -> AppConfig:
         "tracking": TrackingConfig,
         "thermal": ThermalConfig,
         "database": DatabaseConfig,
+        "storage": StorageConfig,
         "dashboard": DashboardConfig,
     }
     for key, cls in simple_sections.items():

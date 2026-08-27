@@ -151,6 +151,32 @@ class SwineRepository:
             )
             return cur.rowcount
 
+    def prune_snapshots(self, keep_days: int, snapshot_dir: str) -> int:
+        """Delete alert snapshots older than keep_days. Returns files removed."""
+        if keep_days < 1:
+            raise ValueError("keep_days must be >= 1")
+        
+        import glob
+        import os
+        import time
+        
+        now = time.time()
+        cutoff = now - (keep_days * 86400)
+        pruned = 0
+        
+        if not os.path.exists(snapshot_dir):
+            return 0
+            
+        for snap in glob.glob(os.path.join(snapshot_dir, "*.jpg")):
+            if os.path.getmtime(snap) < cutoff:
+                try:
+                    os.remove(snap)
+                    pruned += 1
+                except Exception as e:
+                    logger.warning(f"Failed to delete snapshot {snap}: {e}")
+                    
+        return pruned
+
     # ── Pen Alerts ──────────────────────────────────────────────────────
 
     def insert_alert(
