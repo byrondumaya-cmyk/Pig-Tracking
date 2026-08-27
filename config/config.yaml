@@ -119,6 +119,8 @@ dashboard:
   stream_jpeg_quality: 70
   # Chart history window shown on dashboard (in minutes)
   chart_window_minutes: 30
+  # Developer Mode credentials
+  developer_password: "pigtracking123"
 
 # ----- Networking -------------------------------------------
 network:
