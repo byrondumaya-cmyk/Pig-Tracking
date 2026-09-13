@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import logging
 import time
+import threading
 
 import numpy as np
 
@@ -38,6 +39,7 @@ except (ImportError, NotImplementedError):
 class MLX90640Reader:
     """
     Reads the MLX90640 32x24 thermal grid.
+    Runs in a background thread to prevent blocking the main YOLO loop.
     Falls back to a simulation grid on PC/development environments.
     """
 
@@ -47,15 +49,15 @@ class MLX90640Reader:
     def __init__(self, i2c_address: int = 0x33, refresh_hz: int = 8, i2c_bus: int = 1) -> None:
         self._sensor = None
         self._refresh_interval = 1.0 / refresh_hz
-        self._last_read = 0.0
         self._last_grid: np.ndarray = np.full((self.ROWS, self.COLS), 30.0)
+        self._running = True
+        self._thread = None
 
         if _MLX_AVAILABLE:
             try:
                 # Use busio with explicit SCL/SDA
                 self._i2c_bus = i2c_bus
-                # MLX90640 needs a higher baudrate, typically 400kHz or 1MHz, but busio.I2C uses default 100k
-                # unless specified, but board.I2C() uses system default.
+                # MLX90640 needs a higher baudrate, typically 400kHz or 1MHz
                 i2c = busio.I2C(board.SCL, board.SDA, frequency=400000)
                 self._sensor = adafruit_mlx90640.MLX90640(i2c)
                 
@@ -82,34 +84,38 @@ class MLX90640Reader:
         else:
             logger.info("MLX90640 running in simulation mode.")
 
+        # Start background polling thread
+        self._thread = threading.Thread(target=self._poll_sensor, daemon=True, name="MLX90640-Thread")
+        self._thread.start()
+
+    def _poll_sensor(self) -> None:
+        """Background loop to continuously read thermal frames."""
+        frame = [0.0] * 768
+        while self._running:
+            if self._sensor:
+                try:
+                    self._sensor.getFrame(frame)
+                    grid = np.array(frame).reshape((self.ROWS, self.COLS))
+                    self._last_grid = grid
+                except ValueError:
+                    # ValueErrors occur if I2C baudrate is too slow (needs 400kHz in config.txt)
+                    pass
+                except Exception as e:
+                    logger.warning(f"MLX90640 read error: {e}")
+                
+                # Don't spin wildly if there are I2C errors
+                time.sleep(self._refresh_interval / 2)
+            else:
+                # Simulation mode: warm center, cooler edges
+                base = np.random.uniform(28.0, 32.0, (self.ROWS, self.COLS))
+                base[10:14, 14:18] = np.random.uniform(38.0, 41.0, (4, 4))
+                self._last_grid = base
+                time.sleep(self._refresh_interval)
+
     def read(self) -> np.ndarray:
         """
-        Returns a 24x32 numpy array of temperatures in Celsius.
-        Rate-limited to sensor refresh rate. Returns last known grid on fast calls.
+        Returns a 24x32 numpy array of temperatures in Celsius instantly.
         """
-        now = time.time()
-        if now - self._last_read < self._refresh_interval:
-            return self._last_grid
-
-        if self._sensor:
-            try:
-                frame = [0.0] * 768
-                self._sensor.getFrame(frame)
-                grid = np.array(frame).reshape((self.ROWS, self.COLS))
-                self._last_grid = grid
-                self._last_read = now
-            except ValueError:
-                # ValueErrors are somewhat common with MLX90640 on I2C errors; ignore and use last grid
-                pass
-            except Exception as e:
-                logger.warning(f"MLX90640 read error: {e}. Returning last grid.")
-        else:
-            # Simulation: warm center, cooler edges
-            base = np.random.uniform(28.0, 32.0, (self.ROWS, self.COLS))
-            base[10:14, 14:18] = np.random.uniform(38.0, 41.0, (4, 4))  # Simulate pig body heat
-            self._last_grid = base
-            self._last_read = now
-
         return self._last_grid
 
     def read_upscaled(self, output_size: int = 64) -> np.ndarray:
