@@ -7,7 +7,7 @@ PURPOSE:
     and the Flask routes read from — without direct cross-thread object passing.
 
     FrameBuffer   — Latest annotated RGB frame (for MJPEG stream)
-    ThermalBuffer — Latest AMG8833 8x8 temperature grid
+    ThermalBuffer — Latest MLX90640 temperature grid
     BehaviorBuffer — Latest PopulationSnapshot behavior counts
 
 USAGE (in routes.py):
@@ -46,12 +46,12 @@ class FrameBuffer:
     _pig_count: int = 0
 
     @classmethod
-    def update(cls, frame: np.ndarray, tracked_pigs: list, fps: float) -> None:
+    def update(cls, frame: np.ndarray, tracked_pigs: list, fps: float, temperature_map: Optional[dict] = None) -> None:
         """
         Write a new annotated frame to the buffer.
         Called from the main inference loop thread.
         """
-        annotated = _annotate_frame(frame.copy(), tracked_pigs, fps)
+        annotated = _annotate_frame(frame.copy(), tracked_pigs, fps, temperature_map)
         with cls._lock:
             cls._frame = annotated
             cls._fps = fps
@@ -64,12 +64,17 @@ class FrameBuffer:
             return cls._frame.copy() if cls._frame is not None else None
 
 
-def _annotate_frame(frame: np.ndarray, tracked_pigs: list, fps: float) -> np.ndarray:
-    """Draw bounding boxes, track IDs, and behavior labels on the frame."""
+def _annotate_frame(frame: np.ndarray, tracked_pigs: list, fps: float, temperature_map: Optional[dict] = None) -> np.ndarray:
+    """Draw bounding boxes, track IDs, behavior labels, and temperatures on the frame."""
     for pig in tracked_pigs:
         x1, y1, x2, y2 = [int(v) for v in pig.bbox]
         color = BEHAVIOR_COLORS.get(pig.behavior, (128, 128, 128))
-        label = f"#{pig.track_id} {pig.behavior} {pig.confidence:.0%}"
+        
+        temp_str = ""
+        if temperature_map and pig.track_id in temperature_map:
+            temp_str = f" {temperature_map[pig.track_id]:.1f}C"
+            
+        label = f"#{pig.track_id} {pig.behavior} {pig.confidence:.0%}{temp_str}"
 
         cv2.rectangle(frame, (x1, y1), (x2, y2), color, 2)
         (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
@@ -83,7 +88,7 @@ def _annotate_frame(frame: np.ndarray, tracked_pigs: list, fps: float) -> np.nda
 
 class ThermalBuffer:
     """
-    Thread-safe singleton for sharing the latest AMG8833 thermal grid.
+    Thread-safe singleton for sharing the latest MLX90640 thermal grid.
     Written by the main inference loop; read by /api/thermal_feed.
     """
 

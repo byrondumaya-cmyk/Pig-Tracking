@@ -136,15 +136,15 @@ class SwineHealthMonitor:
         # Thermal camera (optional)
         if self.cfg.thermal.enabled:
             try:
-                from src.thermal.thermal_reader import AMG8833Reader
+                from src.thermal.thermal_reader import MLX90640Reader
                 from src.thermal.thermal_mapper import assign_temperatures
-                self.thermal_reader = AMG8833Reader(
+                self.thermal_reader = MLX90640Reader(
                     i2c_address=self.cfg.thermal.i2c_address,
                     refresh_hz=self.cfg.thermal.refresh_hz,
                     i2c_bus=self.cfg.thermal.i2c_bus,
                 )
                 self.thermal_mapper = assign_temperatures
-                logger.info("AMG8833 thermal camera initialized.")
+                logger.info("MLX90640 thermal camera initialized.")
             except Exception as exc:
                 logger.warning("Thermal unavailable: %s. Continuing without.", exc)
                 self.cfg.thermal.enabled = False
@@ -397,7 +397,7 @@ class SwineHealthMonitor:
                 try:
                     os.makedirs(snapshot_dir, exist_ok=True)
                     # Annotate a copy of the frame before saving so the snapshot includes bounding boxes
-                    annotated_frame = _annotate_frame(frame.copy(), tracked_pigs, fps_display)
+                    annotated_frame = _annotate_frame(frame.copy(), tracked_pigs, fps_display, temperature_map)
                     success = cv2.imwrite(filepath, annotated_frame)
                     if success:
                         snapshot_path = filepath
@@ -462,7 +462,7 @@ class SwineHealthMonitor:
 
             # --- Update shared frame buffer for dashboard stream ---
             from src.dashboard.stream import FrameBuffer
-            FrameBuffer.update(frame, tracked_pigs, fps_display)
+            FrameBuffer.update(frame, tracked_pigs, fps_display, temperature_map)
 
         camera.stop()
         logger.info("Async camera stopped. Capture stats: %s", camera.get_stats())

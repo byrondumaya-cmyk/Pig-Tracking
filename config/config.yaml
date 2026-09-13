@@ -50,18 +50,18 @@ tracking:
   min_hits: 3          # Min detections before confirming a track
   iou_threshold: 0.3   # IoU threshold for track-detection association
 
-# ----- Thermal Camera (AMG8833) -----------------------------
+# ----- Thermal Camera (MLX90640) -----------------------------
 thermal:
   enabled: true
   i2c_bus: 1           # RPi I2C bus number (always 1 on RPi4)
-  i2c_address: 0x69    # AMG8833 default address
-  refresh_hz: 10       # AMG8833 native refresh rate
+  i2c_address: 0x33    # MLX90640 default address
+  refresh_hz: 8        # MLX90640 refresh rate (2, 4, 8, 16, 32, 64)
   # Temperature thresholds in Celsius
   normal_range: [35.0, 39.5]
   alert_temp_celsius: 40.0    # Trigger alert above this temperature
-  # Zone mapping: divides RGB frame into a grid matching AMG8833
-  zone_cols: 8         # AMG8833 horizontal pixels
-  zone_rows: 8         # AMG8833 vertical pixels
+  # Zone mapping: divides RGB frame into a grid matching MLX90640
+  zone_cols: 32        # MLX90640 horizontal pixels
+  zone_rows: 24        # MLX90640 vertical pixels
 
 # ----- DHT22 Ambient Sensor ---------------------------------
 dht22:
