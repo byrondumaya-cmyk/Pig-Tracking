@@ -43,21 +43,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 return;
             }
 
-            // Draw to an 8x8 offscreen canvas first
+            // Draw to an 32x24 offscreen canvas first
             const off = document.createElement('canvas');
-            off.width = 8;
-            off.height = 8;
+            off.width = 32;
+            off.height = 24;
             const octx = off.getContext('2d');
 
-            for (let i = 0; i < 8; i++) {
-                for (let j = 0; j < 8; j++) {
+            for (let i = 0; i < 24; i++) {
+                for (let j = 0; j < 32; j++) {
                     octx.fillStyle = getColor(data.grid[i][j]);
                     octx.fillRect(j, i, 1, 1);
                 }
             }
 
             // Draw offscreen to main canvas (scaled up with smoothing)
-            ctx.drawImage(off, 0, 0, 8, 8, 0, 0, 32, 32);
+            ctx.drawImage(off, 0, 0, 32, 24, 0, 0, 32, 32);
 
             updateText('thermal-max', `${data.max_temp_c?.toFixed(1) ?? '--'}°C`);
             updateText('thermal-avg', `${data.avg_temp_c?.toFixed(1) ?? '--'}°C`);

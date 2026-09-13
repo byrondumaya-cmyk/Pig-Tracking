@@ -122,7 +122,7 @@ def run_retention():
 
 @dashboard_bp.route('/api/thermal_feed')
 def thermal_feed():
-    """Returns the latest 8x8 AMG8833 thermal grid from the live ThermalBuffer."""
+    """Returns the latest 32x24 MLX90640 thermal grid from the live ThermalBuffer."""
     from src.dashboard.stream import ThermalBuffer
     grid = ThermalBuffer.read()
     if grid is None:
