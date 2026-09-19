@@ -34,20 +34,45 @@ jobs:
       working-directory: ./mobile_app
       run: dart run flutter_launcher_icons
 
+    # Auto-version: versionCode = GitHub run number, versionName = 1.0.<run_number>
+    - name: Set version
+      id: version
+      run: |
+        VERSION_CODE=${{ github.run_number }}
+        VERSION_NAME="1.0.${VERSION_CODE}"
+        echo "VERSION_CODE=${VERSION_CODE}" >> $GITHUB_OUTPUT
+        echo "VERSION_NAME=${VERSION_NAME}" >> $GITHUB_OUTPUT
+        echo "TAG=v${VERSION_NAME}" >> $GITHUB_OUTPUT
+
     - name: Build APK
       working-directory: ./mobile_app
-      run: flutter build apk --release
+      run: |
+        flutter build apk --release \
+          --build-number=${{ steps.version.outputs.VERSION_CODE }} \
+          --build-name=${{ steps.version.outputs.VERSION_NAME }}
 
+    - name: Rename APK with version
+      run: |
+        mv mobile_app/build/app/outputs/flutter-apk/app-release.apk \
+           mobile_app/build/app/outputs/flutter-apk/pig-tracking-${{ steps.version.outputs.VERSION_NAME }}.apk
+
+    # Always update the "latest" release so the credentials.md download link stays stable
     - name: Delete existing latest release
       run: gh release delete latest --yes --cleanup-tag || true
       env:
         GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Publish APK as GitHub Release
+    - name: Publish APK as versioned + latest GitHub Release
       uses: softprops/action-gh-release@v2
       with:
         tag_name: latest
-        name: "Latest Build"
-        body: "APK auto-built from latest commit on main."
-        files: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+        name: "Latest Build — ${{ steps.version.outputs.VERSION_NAME }} (build ${{ steps.version.outputs.VERSION_CODE }})"
+        body: |
+          **Version:** ${{ steps.version.outputs.VERSION_NAME }}
+          **Build:** #${{ steps.version.outputs.VERSION_CODE }}
+          **Commit:** ${{ github.sha }}
+          **Date:** ${{ github.event.head_commit.timestamp }}
 
+          ### Install
+          Download `pig-tracking-${{ steps.version.outputs.VERSION_NAME }}.apk` below and install on Android.
+        files: mobile_app/build/app/outputs/flutter-apk/pig-tracking-${{ steps.version.outputs.VERSION_NAME }}.apk

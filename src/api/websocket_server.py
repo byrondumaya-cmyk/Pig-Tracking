@@ -16,8 +16,10 @@ import numpy as np
 
 try:
     import websockets
+    _WEBSOCKETS_AVAILABLE = True
 except ImportError:
-    pass  # We will add this to requirements-pi.txt
+    websockets = None  # type: ignore[assignment]
+    _WEBSOCKETS_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +92,12 @@ class SensorHubStreamer:
             await asyncio.sleep(1.0 / 30.0)
 
     async def _start_server(self):
+        if not _WEBSOCKETS_AVAILABLE:
+            logger.error(
+                "WebSocket server cannot start: 'websockets' package is not installed. "
+                "Run: pip install websockets"
+            )
+            return
         self._running = True
         logger.info(f"Starting Sensor Hub Websocket on ws://{self.host}:{self.port}")
         # Run the server and the broadcaster concurrently
