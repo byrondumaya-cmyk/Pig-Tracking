@@ -23,7 +23,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     // Get the connected IP address from the WebSocket service
     final ws = context.read<WebsocketService>();
     final ip = ws.savedIp ?? '192.168.4.1'; // fallback to AP default
-    _url = 'http://$ip:5000/settings';
+    _url = 'http://admin:PigDashboard2026!@$ip:5000/settings';
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)

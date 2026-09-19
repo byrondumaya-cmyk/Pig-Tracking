@@ -21,6 +21,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Detection> _currentDetections = [];
   bool _isProcessingFrame = false;
 
+  // FPS tracking
+  int _frameCount = 0;
+  double _fps = 0.0;
+  DateTime _fpsTimer = DateTime.now();
+
   @override
   void initState() {
     super.initState();
@@ -34,15 +39,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _processFrame(SensorData data) async {
-    if (_isProcessingFrame || !_tflite.isLoaded) return;
+    // Count frames for FPS
+    _frameCount++;
+    final now = DateTime.now();
+    final elapsed = now.difference(_fpsTimer).inMilliseconds;
+    if (elapsed >= 1000) {
+      final newFps = (_frameCount * 1000.0 / elapsed);
+      _frameCount = 0;
+      _fpsTimer = now;
+      if (mounted) setState(() => _fps = newFps);
+    }
 
+    if (_isProcessingFrame || !_tflite.isLoaded) return;
     _isProcessingFrame = true;
     try {
-      // Run async isolate inference
-      final detections = await _tflite.runInferenceAsync(data.imageBytes);
-      if (mounted) {
-        setState(() => _currentDetections = detections);
-      }
+      // Run inference directly — compute() isolates cannot safely share
+      // an Interpreter loaded in the main isolate via fromAddress.
+      // runInference() is ~80-150ms on a modern phone, acceptable for live UI.
+      final detections = _tflite.runInference(data.imageBytes);
+      if (mounted) setState(() => _currentDetections = detections);
     } catch (e) {
       debugPrint('[Dashboard] Inference error: $e');
     } finally {
@@ -91,12 +106,38 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Column(
       children: [
-        // Top Half: Live Feed (Local Inference)
+        // Top Half: Live Feed (Local Inference) + FPS overlay
         Expanded(
           flex: 5,
-          child: LiveFeedWidget(
-            imageBytes: data.imageBytes,
-            detections: _currentDetections,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              LiveFeedWidget(
+                imageBytes: data.imageBytes,
+                detections: _currentDetections,
+              ),
+              // FPS overlay badge
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    '${_fps.toStringAsFixed(1)} FPS',
+                    style: const TextStyle(
+                      color: Colors.greenAccent,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
         

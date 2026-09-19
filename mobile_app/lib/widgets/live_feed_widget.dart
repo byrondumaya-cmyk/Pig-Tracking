@@ -42,13 +42,8 @@ class _DetectionOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Note: This assumes YOLOv8 output coordinates are normalized (0-1).
-    // If they are absolute (0-640), they need to be scaled by size.width/640.
-    // For this implementation, we assume the TFLiteService scales them to 0-1 or we scale here.
-    // Assuming they are unscaled (0-640) for now, as that's typical from raw tensors before UI projection.
-    final scaleX = size.width / 640.0;
-    final scaleY = size.height / 640.0;
-
+    // Detection.bbox values are normalized 0.0–1.0 (fraction of image size).
+    // Scale them to canvas dimensions for display.
     for (final det in detections) {
       final color = kBehaviorMap[det.label]?.color ?? Colors.greenAccent;
       
@@ -57,12 +52,12 @@ class _DetectionOverlayPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2.0;
 
-      // Scale bbox to canvas size
-      final rect = Rect.fromLTRB(
-        det.bbox.left * scaleX,
-        det.bbox.top * scaleY,
-        det.bbox.right * scaleX,
-        det.bbox.bottom * scaleY,
+      // Scale normalized bbox to canvas size
+      final rect = Rect.fromLTWH(
+        det.bbox.left * size.width,
+        det.bbox.top * size.height,
+        det.bbox.width * size.width,
+        det.bbox.height * size.height,
       );
 
       canvas.drawRect(rect, paint);

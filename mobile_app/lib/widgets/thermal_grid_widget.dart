@@ -67,7 +67,9 @@ class _ThermalPainter extends CustomPainter {
         final temp = grid[y][x];
         paint.color = _getColorForTemp(temp);
         
-        final rect = Rect.fromLTWH(x * cellWidth, y * cellHeight, cellWidth, cellHeight);
+        // Mirror horizontally: draw pixel at (cols-1-x) to flip left↔right
+        final drawX = (cols - 1 - x) * cellWidth;
+        final rect = Rect.fromLTWH(drawX, y * cellHeight, cellWidth, cellHeight);
         canvas.drawRect(rect, paint);
       }
     }
