@@ -84,6 +84,7 @@ class SwineHealthMonitor:
         self.dht_sensor = None
         self.gsm = None
         self.pig_counter = None
+        self.ws_streamer = None
 
     def setup(self) -> None:
         """Initialize all subsystems. Fails fast if critical components missing."""
@@ -107,6 +108,15 @@ class SwineHealthMonitor:
         self.repository.initialize_default_alert_config()  # Ensure alert config initialized
         self.repository.initialize_default_sms_templates()  # Ensure SMS templates initialized
         logger.info("Database ready: %s", db_path)
+
+        # WebSocket Server for Mobile App
+        try:
+            from src.api.websocket_server import SensorHubStreamer
+            self.ws_streamer = SensorHubStreamer(host="0.0.0.0", port=8765)
+            self.ws_streamer.start_in_background()
+            logger.info("WebSocket server started on 0.0.0.0:8765 for mobile app.")
+        except Exception as e:
+            logger.warning("Could not start WebSocket server: %s", e)
 
         # AI Detector
         model_path = Path(self.cfg.inference.model_path)
@@ -355,6 +365,7 @@ class SwineHealthMonitor:
 
             # --- Thermal mapping ---
             temperature_map: dict[int, float] = {}
+            thermal_grid = None
             if self.cfg.thermal.enabled and self.thermal_reader:
                 thermal_grid = self.thermal_reader.read()
                 temperature_map = self.thermal_mapper(
@@ -363,6 +374,10 @@ class SwineHealthMonitor:
                 # Push latest thermal grid to dashboard buffer
                 from src.dashboard.stream import ThermalBuffer
                 ThermalBuffer.update(thermal_grid)
+                
+            # Update websocket streamer
+            if getattr(self, 'ws_streamer', None):
+                self.ws_streamer.update_sensor_data(frame, thermal_grid)
 
             # --- Behavior analyzer: build detection dicts ---
             detection_dicts = [

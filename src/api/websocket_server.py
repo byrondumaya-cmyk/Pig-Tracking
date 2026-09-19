@@ -57,7 +57,7 @@ class SensorHubStreamer:
                 await asyncio.sleep(0.1)
                 continue
                 
-            if self._latest_frame is None or self._latest_thermal is None:
+            if self._latest_frame is None:
                 await asyncio.sleep(0.01)
                 continue
 
