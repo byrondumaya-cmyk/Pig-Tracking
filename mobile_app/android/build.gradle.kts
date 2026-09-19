@@ -11,31 +11,26 @@ val newBuildDir: Directory =
         .get()
 rootProject.layout.buildDirectory.value(newBuildDir)
 
-fun configureAndroidCompileOptions(androidExtension: Any) {
-    val compileOptions =
-        androidExtension.javaClass.methods
-            .firstOrNull { it.name == "getCompileOptions" && it.parameterCount == 0 }
-            ?.invoke(androidExtension)
-            ?: return
-
-    compileOptions.javaClass
-        .getMethod("setSourceCompatibility", JavaVersion::class.java)
-        .invoke(compileOptions, JavaVersion.VERSION_17)
-    compileOptions.javaClass
-        .getMethod("setTargetCompatibility", JavaVersion::class.java)
-        .invoke(compileOptions, JavaVersion.VERSION_17)
-}
-
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 
     plugins.withId("com.android.application") {
-        extensions.findByName("android")?.let(::configureAndroidCompileOptions)
+        extensions.configure<com.android.build.api.dsl.ApplicationExtension> {
+            compileOptions {
+                sourceCompatibility = JavaVersion.VERSION_17
+                targetCompatibility = JavaVersion.VERSION_17
+            }
+        }
     }
 
     plugins.withId("com.android.library") {
-        extensions.findByName("android")?.let(::configureAndroidCompileOptions)
+        extensions.configure<com.android.build.api.dsl.LibraryExtension> {
+            compileOptions {
+                sourceCompatibility = JavaVersion.VERSION_17
+                targetCompatibility = JavaVersion.VERSION_17
+            }
+        }
     }
 
     tasks.withType<JavaCompile>().configureEach {
