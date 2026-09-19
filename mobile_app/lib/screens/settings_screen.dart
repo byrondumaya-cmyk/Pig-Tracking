@@ -27,7 +27,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
     _controller = WebViewController()
       ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setBackgroundColor(AppColors.bgDark)
+      ..setBackgroundColor(AppColors.background)
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageFinished: (String url) {
