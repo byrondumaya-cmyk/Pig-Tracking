@@ -374,10 +374,6 @@ class SwineHealthMonitor:
                 # Push latest thermal grid to dashboard buffer
                 from src.dashboard.stream import ThermalBuffer
                 ThermalBuffer.update(thermal_grid)
-                
-            # Update websocket streamer
-            if getattr(self, 'ws_streamer', None):
-                self.ws_streamer.update_sensor_data(frame, thermal_grid)
 
             # --- Behavior analyzer: build detection dicts ---
             detection_dicts = [
@@ -500,6 +496,12 @@ class SwineHealthMonitor:
             # --- Update shared frame buffer for dashboard stream ---
             from src.dashboard.stream import FrameBuffer
             FrameBuffer.update(frame, tracked_pigs, fps_display, temperature_map)
+            
+            # --- Update websocket streamer with fully annotated frame ---
+            if getattr(self, 'ws_streamer', None):
+                annotated_frame = FrameBuffer.read()
+                if annotated_frame is not None:
+                    self.ws_streamer.update_sensor_data(annotated_frame, thermal_grid)
 
         camera.stop()
         logger.info("Async camera stopped. Capture stats: %s", camera.get_stats())

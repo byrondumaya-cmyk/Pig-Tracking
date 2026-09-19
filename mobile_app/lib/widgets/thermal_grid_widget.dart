@@ -1,3 +1,4 @@
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import '../core/constants.dart';
 
@@ -33,9 +34,12 @@ class ThermalGridWidget extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        return CustomPaint(
-          size: Size(constraints.maxWidth, constraints.maxHeight),
-          painter: _ThermalPainter(grid: grid, minTemp: minTemp, maxTemp: maxTemp),
+        return ImageFiltered(
+          imageFilter: ImageFilter.blur(sigmaX: 4.0, sigmaY: 4.0),
+          child: CustomPaint(
+            size: Size(constraints.maxWidth, constraints.maxHeight),
+            painter: _ThermalPainter(grid: grid, minTemp: minTemp, maxTemp: maxTemp),
+          ),
         );
       },
     );
