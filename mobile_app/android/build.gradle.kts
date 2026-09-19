@@ -15,11 +15,12 @@ subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 
-    // Force ALL subprojects (plugins) to use the same JVM version.
-    // jvmToolchain locks both Java and Kotlin compilation atomically.
-    plugins.withId("org.jetbrains.kotlin.android") {
-        extensions.configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension> {
-            jvmToolchain(17)
+    // Override compileOptions on every Android subproject (e.g. tflite_flutter, shared_preferences).
+    // Configuring BaseExtension directly is more authoritative than overriding JavaCompile tasks.
+    afterEvaluate {
+        extensions.findByType<com.android.build.gradle.BaseExtension>()?.compileOptions {
+            sourceCompatibility = JavaVersion.VERSION_17
+            targetCompatibility = JavaVersion.VERSION_17
         }
     }
 }
