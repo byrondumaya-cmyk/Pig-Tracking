@@ -153,6 +153,93 @@ def run_retention():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 400
 
+
+# --- Alert Config API Endpoints -----------------------------------------------
+
+# Default factory-safe values for alert thresholds
+_ALERT_DEFAULTS = {
+    "alert_individual_enabled": True,
+    "stationary_alert_minutes": 30.0,
+    "stationary_heat_stress_minutes": 20.0,
+    "fever_delta_threshold_c": 1.5,
+    "alert_population_enabled": True,
+    "population_lethargy_ratio": 0.6,
+    "population_persist_seconds": 120,
+    "thi_heat_stress_threshold": 79.0,
+    "cooldown_minutes": 60,
+}
+
+
+@dashboard_bp.route('/api/alert_config', methods=['GET'])
+@dev_required
+def get_alert_config():
+    """Return current alert thresholds from live config."""
+    cfg = current_app.config.get("SHM_CONFIG")
+    if not cfg:
+        return jsonify({"status": "error", "message": "Config not loaded"}), 500
+    try:
+        h = cfg.health
+        return jsonify({
+            "status": "success",
+            "config": {
+                "alert_individual_enabled": getattr(h, "alert_individual_enabled", True),
+                "stationary_alert_minutes": getattr(h, "stationary_alert_minutes", 30.0),
+                "stationary_heat_stress_minutes": getattr(h, "stationary_heat_stress_minutes", 20.0),
+                "fever_delta_threshold_c": getattr(h, "fever_delta_threshold_c", 1.5),
+                "alert_population_enabled": getattr(h, "alert_population_enabled", True),
+                "population_lethargy_ratio": getattr(h, "population_lethargy_ratio", 0.6),
+                "population_persist_seconds": getattr(h, "population_persist_seconds", 120),
+                "thi_heat_stress_threshold": getattr(h, "thi_heat_stress_threshold", 79.0),
+                "cooldown_minutes": getattr(cfg.gsm, "cooldown_minutes", 60),
+            }
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@dashboard_bp.route('/api/alert_config', methods=['POST'])
+@dev_required
+def save_alert_config():
+    """Save alert threshold overrides to config.yaml."""
+    try:
+        data = request.json or {}
+        with open(CONFIG_PATH, "r") as f:
+            config = yaml.safe_load(f)
+
+        h = config.setdefault("health", {})
+        gsm = config.setdefault("gsm", {})
+
+        mapping = {
+            "alert_individual_enabled": (h, bool),
+            "stationary_alert_minutes": (h, float),
+            "stationary_heat_stress_minutes": (h, float),
+            "fever_delta_threshold_c": (h, float),
+            "alert_population_enabled": (h, bool),
+            "population_lethargy_ratio": (h, float),
+            "population_persist_seconds": (h, int),
+            "thi_heat_stress_threshold": (h, float),
+        }
+        for key, (section, cast) in mapping.items():
+            if key in data:
+                section[key] = cast(data[key])
+        if "cooldown_minutes" in data:
+            gsm["cooldown_minutes"] = int(data["cooldown_minutes"])
+
+        with open(CONFIG_PATH, "w") as f:
+            yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
+
+        return jsonify({"status": "success", "message": "Alert config saved. Reload service to apply."})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
+
+@dashboard_bp.route('/api/alert_config/defaults', methods=['GET'])
+@dev_required
+def get_alert_defaults():
+    """Return factory-default alert threshold values for the Reset to Defaults button."""
+    return jsonify({"status": "success", "config": _ALERT_DEFAULTS})
+
+
 # --- AJAX Polling Endpoints ---------------------------------
 
 @dashboard_bp.route('/api/thermal_feed')

@@ -37,7 +37,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Event Listeners ─────────────────────────────────────────────────────
     document.getElementById('save-alerts-btn').addEventListener('click', saveAlertConfig);
-    document.getElementById('reset-alerts-btn').addEventListener('click', resetAlertConfig);
+    document.getElementById('reset-alerts-btn').addEventListener('click', resetAlertDefaults);
     
     document.getElementById('add-recipient-btn').addEventListener('click', addRecipient);
     document.getElementById('new-phone-input').addEventListener('keypress', e => {
@@ -108,22 +108,37 @@ async function loadAlertConfig() {
     try {
         const data = await apiFetch('/api/alert_config');
         if (data.status === 'success') {
-            const c = data.config;
-            document.getElementById('alert_individual_enabled').checked = c.alert_individual_enabled;
-            document.getElementById('stationary_alert_minutes').value = c.stationary_alert_minutes;
-            document.getElementById('stationary_heat_stress_minutes').value = c.stationary_heat_stress_minutes;
-            document.getElementById('fever_delta_threshold_c').value = c.fever_delta_threshold_c;
-            
-            document.getElementById('alert_population_enabled').checked = c.alert_population_enabled;
-            document.getElementById('population_lethargy_ratio').value = c.population_lethargy_ratio;
-            document.getElementById('population_persist_seconds').value = c.population_persist_seconds;
-            
-            document.getElementById('thi_heat_stress_threshold').value = c.thi_heat_stress_threshold;
-            document.getElementById('cooldown_minutes').value = c.cooldown_minutes;
+            _populateAlertFields(data.config);
         }
     } catch (e) {
         showToast('Failed to load alert settings', 'error');
     }
+}
+
+async function resetAlertDefaults() {
+    try {
+        const data = await apiFetch('/api/alert_config/defaults');
+        if (data.status === 'success') {
+            _populateAlertFields(data.config);
+            showToast('Reset to default values. Click Save to apply.', 'info');
+        }
+    } catch (e) {
+        showToast('Failed to load defaults', 'error');
+    }
+}
+
+function _populateAlertFields(c) {
+    document.getElementById('alert_individual_enabled').checked = c.alert_individual_enabled;
+    document.getElementById('stationary_alert_minutes').value = c.stationary_alert_minutes;
+    document.getElementById('stationary_heat_stress_minutes').value = c.stationary_heat_stress_minutes;
+    document.getElementById('fever_delta_threshold_c').value = c.fever_delta_threshold_c;
+    
+    document.getElementById('alert_population_enabled').checked = c.alert_population_enabled;
+    document.getElementById('population_lethargy_ratio').value = c.population_lethargy_ratio;
+    document.getElementById('population_persist_seconds').value = c.population_persist_seconds;
+    
+    document.getElementById('thi_heat_stress_threshold').value = c.thi_heat_stress_threshold;
+    document.getElementById('cooldown_minutes').value = c.cooldown_minutes;
 }
 
 async function saveAlertConfig() {

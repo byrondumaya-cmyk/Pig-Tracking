@@ -218,6 +218,37 @@ class SwineHealthMonitor:
         Path(h.snapshot_dir).mkdir(parents=True, exist_ok=True)
         logger.info("All subsystems initialized.")
 
+    def _start_camera_relay(self, camera) -> None:
+        """
+        Background thread: reads raw frames from AsyncCamera at full speed
+        (~30 FPS) and pushes them to the WebSocket streamer.
+        This is completely decoupled from the ONNX inference loop so the
+        phone receives a smooth high-FPS stream regardless of inference speed.
+        """
+        def _relay():
+            target_interval = 1.0 / max(self.cfg.camera.fps, 15)  # >= 15 FPS relay
+            while self._running:
+                loop_start = time.time()
+                frame = camera.read()
+                if frame is not None and getattr(self, 'ws_streamer', None):
+                    # Read thermal lazily at a lower rate (sensor is slow)
+                    raw_thermal = None
+                    if self.cfg.thermal.enabled and self.thermal_reader:
+                        try:
+                            raw_thermal = self.thermal_reader.read()
+                        except Exception:
+                            pass
+                    self.ws_streamer.update_sensor_data(frame.copy(), raw_thermal)
+                # Pace the relay loop to the target FPS
+                elapsed = time.time() - loop_start
+                sleep_for = target_interval - elapsed
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+
+        relay_thread = threading.Thread(target=_relay, name="camera-relay", daemon=True)
+        relay_thread.start()
+        logger.info("Camera relay thread started (target %d FPS).", self.cfg.camera.fps)
+
     def run(self) -> None:
         """Start the main processing loop and the Flask dashboard thread."""
         self._running = True
@@ -262,6 +293,8 @@ class SwineHealthMonitor:
                 "Camera started (async mode). Target %d FPS. Ctrl+C to stop.",
                 self.cfg.camera.fps,
             )
+            # Start the high-FPS camera relay thread BEFORE the inference loop
+            self._start_camera_relay(camera)
         else:
             # Park here — the dashboard thread is already running; just keep the
             # service alive until the operator addresses the camera issue.
@@ -320,14 +353,7 @@ class SwineHealthMonitor:
                 fps_display = 30 / elapsed if elapsed > 0 else 0
                 fps_timer = time.time()
 
-            # Update websocket streamer with raw frame at max FPS
-            if getattr(self, 'ws_streamer', None):
-                raw_thermal = None
-                if self.cfg.thermal.enabled and self.thermal_reader:
-                    raw_thermal = self.thermal_reader.read()
-                self.ws_streamer.update_sensor_data(frame.copy(), raw_thermal)
-
-            # Skip frames to reduce CPU load
+            # Skip frames to reduce CPU load on ONNX inference
             if frame_count % self.cfg.inference.frame_skip != 0:
                 continue
 
