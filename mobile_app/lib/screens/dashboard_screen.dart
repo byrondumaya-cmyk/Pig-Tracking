@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../core/constants.dart';
 import '../services/websocket_service.dart';
+import '../services/tflite_service.dart';
 import '../widgets/live_feed_widget.dart';
 import '../widgets/thermal_grid_widget.dart';
 import '../widgets/status_chip.dart';
@@ -16,9 +17,47 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  final TFLiteService _tflite = TFLiteService();
+  List<Detection> _currentDetections = [];
+  bool _isProcessingFrame = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tflite.loadModel();
+  }
+
+  @override
+  void dispose() {
+    _tflite.dispose();
+    super.dispose();
+  }
+
+  Future<void> _processFrame(SensorData data) async {
+    if (_isProcessingFrame || !_tflite.isLoaded) return;
+
+    _isProcessingFrame = true;
+    try {
+      // Run async isolate inference
+      final detections = await _tflite.runInferenceAsync(data.imageBytes);
+      if (mounted) {
+        setState(() => _currentDetections = detections);
+      }
+    } catch (e) {
+      debugPrint('[Dashboard] Inference error: $e');
+    } finally {
+      _isProcessingFrame = false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ws = context.watch<WebsocketService>();
+
+    // Kick off inference if we have new data and aren't already processing
+    if (ws.latestData != null) {
+      _processFrame(ws.latestData!);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -52,11 +91,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Column(
       children: [
-        // Top Half: Live Feed (Annotated by Server)
+        // Top Half: Live Feed (Local Inference)
         Expanded(
           flex: 5,
           child: LiveFeedWidget(
             imageBytes: data.imageBytes,
+            detections: _currentDetections,
           ),
         ),
         
@@ -77,16 +117,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text('Live Annotations', style: AppText.h3),
+                          const Text('Live Detections', style: AppText.h3),
                           const SizedBox(height: AppSpacing.sm),
-                          const Expanded(
-                            child: Center(
-                              child: Text('Detections are now handled and drawn by the Raspberry Pi for 100% accuracy sync.', 
-                                style: AppText.body, 
-                                textAlign: TextAlign.center,
+                          if (_currentDetections.isEmpty)
+                            const Expanded(child: Center(child: Text('No subjects detected', style: AppText.body)))
+                          else
+                            Expanded(
+                              child: ListView.builder(
+                                itemCount: _currentDetections.length,
+                                itemBuilder: (context, i) {
+                                  final det = _currentDetections[i];
+                                  final meta = kBehaviorMap[det.label];
+                                  return ListTile(
+                                    dense: true,
+                                    contentPadding: EdgeInsets.zero,
+                                    leading: Icon(meta?.icon ?? Icons.help_outline, color: meta?.color, size: 20),
+                                    title: Text(meta?.label ?? det.label, style: AppText.body),
+                                    trailing: Text('${(det.confidence * 100).toInt()}%', style: AppText.mono),
+                                  );
+                                },
                               ),
                             ),
-                          )
                         ],
                       ),
                     ),

@@ -31,8 +31,8 @@ class Detection {
 
 class _InferenceRequest {
   final Uint8List jpegBytes;
-  final SendPort resultPort;
-  const _InferenceRequest(this.jpegBytes, this.resultPort);
+  final int interpreterAddress;
+  const _InferenceRequest(this.jpegBytes, this.interpreterAddress);
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -80,20 +80,20 @@ class TFLiteService {
   /// Returns parsed [Detection] list after NMS.
   Future<List<Detection>> runInferenceAsync(Uint8List jpegBytes) async {
     if (_interpreter == null) return [];
-    return compute(_inferenceWorker, jpegBytes);
+    return compute(_inferenceWorker, _InferenceRequest(jpegBytes, _interpreter!.address));
   }
 
   /// Sync fallback for direct calls (no UI-thread isolation).
   List<Detection> runInference(Uint8List jpegBytes) {
     if (_interpreter == null) return [];
-    return _inferenceWorker(jpegBytes);
+    return _inferenceWorker(_InferenceRequest(jpegBytes, _interpreter!.address));
   }
 
   // ── Worker (runs inside Isolate) ──────────────────────────────────────────
 
-  static List<Detection> _inferenceWorker(Uint8List jpegBytes) {
+  static List<Detection> _inferenceWorker(_InferenceRequest request) {
     // 1. Decode + resize
-    final image = img.decodeJpg(jpegBytes);
+    final image = img.decodeJpg(request.jpegBytes);
     if (image == null) return [];
 
     final resized = img.copyResize(image, width: _inputSize, height: _inputSize);
@@ -121,10 +121,48 @@ class TFLiteService {
     final output = List.generate(1, (_) =>
       List.generate(12, (_) => List<double>.filled(8400, 0.0)));
 
-    // NOTE: Interpreter cannot be passed to isolates; this stub returns empty.
-    // In production, load a fresh Interpreter inside the isolate.
-    // For now, return empty to avoid crash — UI still shows live feed.
-    return [];
+    // Reconstruct interpreter from address
+    final interpreter = Interpreter.fromAddress(request.interpreterAddress);
+    interpreter.run(input, output);
+    
+    // Parse YOLOv8 output
+    final List<Detection> dets = [];
+    final tensor = output[0]; // [12, 8400] -> 4 bbox coords + 8 class scores
+    
+    for (int i = 0; i < 8400; i++) {
+      double maxClassScore = 0.0;
+      int classId = -1;
+      
+      // Classes are at indices 4 to 11
+      for (int c = 4; c < 12; c++) {
+        final score = tensor[c][i];
+        if (score > maxClassScore) {
+          maxClassScore = score;
+          classId = c - 4;
+        }
+      }
+      
+      if (maxClassScore >= _confThreshold) {
+        // YOLOv8 bbox format: center_x, center_y, width, height (normalized to input size)
+        final cx = tensor[0][i];
+        final cy = tensor[1][i];
+        final w = tensor[2][i];
+        final h = tensor[3][i];
+        
+        final left = (cx - w / 2) / _inputSize;
+        final top = (cy - h / 2) / _inputSize;
+        final width = w / _inputSize;
+        final height = h / _inputSize;
+        
+        dets.add(Detection(
+          bbox: Rect.fromLTWH(left, top, width, height),
+          label: _labels[classId],
+          confidence: maxClassScore,
+        ));
+      }
+    }
+
+    return _nms(dets);
   }
 
   // ── NMS helpers ───────────────────────────────────────────────────────────

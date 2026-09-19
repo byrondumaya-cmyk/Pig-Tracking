@@ -71,7 +71,7 @@ thermal:
   # Rotation applied to raw thermal grid BEFORE zone mapping AND display.
   # Set to 90 for 90° CW, 45 for 45° CW, etc.
   # Needed because the camera was physically mounted at 45° off-axis.
-  display_rotation_deg: 90
+  display_rotation_deg: 270
 
 # ----- DHT22 Ambient Sensor ---------------------------------
 dht22:

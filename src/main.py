@@ -320,6 +320,13 @@ class SwineHealthMonitor:
                 fps_display = 30 / elapsed if elapsed > 0 else 0
                 fps_timer = time.time()
 
+            # Update websocket streamer with raw frame at max FPS
+            if getattr(self, 'ws_streamer', None):
+                raw_thermal = None
+                if self.cfg.thermal.enabled and self.thermal_reader:
+                    raw_thermal = self.thermal_reader.read()
+                self.ws_streamer.update_sensor_data(frame.copy(), raw_thermal)
+
             # Skip frames to reduce CPU load
             if frame_count % self.cfg.inference.frame_skip != 0:
                 continue
@@ -496,12 +503,6 @@ class SwineHealthMonitor:
             # --- Update shared frame buffer for dashboard stream ---
             from src.dashboard.stream import FrameBuffer
             FrameBuffer.update(frame, tracked_pigs, fps_display, temperature_map)
-            
-            # --- Update websocket streamer with fully annotated frame ---
-            if getattr(self, 'ws_streamer', None):
-                annotated_frame = FrameBuffer.read()
-                if annotated_frame is not None:
-                    self.ws_streamer.update_sensor_data(annotated_frame, thermal_grid)
 
         camera.stop()
         logger.info("Async camera stopped. Capture stats: %s", camera.get_stats())
