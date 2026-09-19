@@ -8,32 +8,42 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: write
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Set up Java
       uses: actions/setup-java@v3
       with:
         distribution: 'zulu'
         java-version: '17'
-        
+
     - name: Set up Flutter
       uses: subosito/flutter-action@v2
       with:
         flutter-version: '3.x'
         channel: 'stable'
-        
+
     - name: Install dependencies
       working-directory: ./mobile_app
       run: flutter pub get
-      
+
     - name: Build APK
       working-directory: ./mobile_app
       run: flutter build apk --release
-      
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
+
+    - name: Delete existing latest release
+      run: gh release delete latest --yes --cleanup-tag || true
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Publish APK as GitHub Release
+      uses: softprops/action-gh-release@v2
       with:
-        name: SwineHealthMonitor-APK
-        path: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+        tag_name: latest
+        name: "Latest Build"
+        body: "APK auto-built from latest commit on main."
+        files: mobile_app/build/app/outputs/flutter-apk/app-release.apk
+
