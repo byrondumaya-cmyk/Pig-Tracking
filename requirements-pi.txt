@@ -43,6 +43,9 @@ Werkzeug==3.0.4              # WSGI utils (bundled with Flask)
 
 # --- Data Processing ---
 PyYAML==6.0.2                # Config file parsing
+
+# --- Hybrid AI (Sensor Hub) ---
+websockets==13.0.1           # High-speed data streaming to Mobile App
 Pillow==10.4.0               # Image save for snapshots
 
 # --- Utilities ---

@@ -36,12 +36,16 @@ class CameraConfig:
 @dataclass
 class InferenceConfig:
     model_path: str = "models/best.onnx"
+    model_name: str = "unknown"           # Human-readable model identifier
+    model_version: str = "?"
     confidence_threshold: float = 0.45
     iou_threshold: float = 0.45
     input_size: int = 640
     frame_skip: int = 1
     intra_op_threads: int = 4
     inter_op_threads: int = 1
+    confirmation_votes: int = 2           # Min votes in window to confirm a track
+    confirmation_window: int = 4          # Rolling frame window for voting
 
 
 @dataclass
@@ -55,12 +59,13 @@ class TrackingConfig:
 class ThermalConfig:
     enabled: bool = True
     i2c_bus: int = 1
-    i2c_address: int = 0x69
-    refresh_hz: int = 10
+    i2c_address: int = 0x33     # MLX90640 default (0x33), not AMG8833 (0x69)
+    refresh_hz: int = 8
     normal_range: list[float] = field(default_factory=lambda: [35.0, 39.5])
     alert_temp_celsius: float = 40.0
-    zone_cols: int = 8
-    zone_rows: int = 8
+    zone_cols: int = 32          # MLX90640 horizontal resolution
+    zone_rows: int = 24          # MLX90640 vertical resolution
+    display_rotation_deg: float = 0.0  # CW rotation applied to raw grid (45.0 for mis-mounted camera)
 
 
 @dataclass

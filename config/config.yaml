@@ -22,15 +22,21 @@ camera:
 # ----- AI Inference -----------------------------------------
 inference:
   model_path: "models/best.onnx"
-  confidence_threshold: 0.45   # Min confidence to accept a detection
-  iou_threshold: 0.45          # NMS IoU threshold
-  input_size: 640              # Model input size (must match exported ONNX model)
+  model_name: "swine_behavior_v1"   # Human-readable model identifier
+  model_version: "1.0.0"           # Increment this when swapping to a new model
+  confidence_threshold: 0.45        # Min confidence to accept a detection
+  iou_threshold: 0.45               # NMS IoU threshold
+  input_size: 640                   # Model input size (must match exported ONNX model)
   # Performance: process every Nth frame (1 = every frame)
   # Increase to 2 or 3 if FPS is too low on Pi
   frame_skip: 3
   # ONNX Runtime thread count — use 4 for RPi4 (4-core CPU)
   intra_op_threads: 4
   inter_op_threads: 1
+  # Confirmation voting (reduces ghost/flicker false positives)
+  # A track is only reported after it accumulates enough votes in a rolling window.
+  confirmation_votes: 2             # Min positive frames needed in the window
+  confirmation_window: 4            # Rolling window size (frames)
 
 # ----- Class Names ------------------------------------------
 # Must match the order in data/data.yaml
@@ -62,6 +68,10 @@ thermal:
   # Zone mapping: divides RGB frame into a grid matching MLX90640
   zone_cols: 32        # MLX90640 horizontal pixels
   zone_rows: 24        # MLX90640 vertical pixels
+  # Rotation applied to raw thermal grid BEFORE zone mapping AND display.
+  # Set to 90 for 90° CW, 45 for 45° CW, etc.
+  # Needed because the camera was physically mounted at 45° off-axis.
+  display_rotation_deg: 45
 
 # ----- DHT22 Ambient Sensor ---------------------------------
 dht22:

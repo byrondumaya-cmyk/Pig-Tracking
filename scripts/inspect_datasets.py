@@ -35,8 +35,8 @@ sys.path.insert(0, str(ROOT))
 
 # -- Constants ------------------------------------------------------------
 DATASET_DIRS = {
-    "Dataset 1 (wlvku)": ROOT / "datasets" / "dataset_1_pig-behavior-wlvku",
-    "Dataset 2 (8xbgn)": ROOT / "datasets" / "dataset_2_pig-behavior-8xbgn",
+    "Dataset 1 (wlvku)": Path(r"C:\Users\Byron Dumaya\Downloads\pig-behavior.v1i.yolov8"),
+    "Dataset 2 (8xbgn)": Path(r"C:\Users\Byron Dumaya\Downloads\Pig Behavior.v1i.yolov8"),
 }
 
 SPLITS = ["train", "valid", "test"]

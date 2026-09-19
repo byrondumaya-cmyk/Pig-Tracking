@@ -8,7 +8,7 @@ names:
   6: social_interaction
   7: aggression
 nc: 8
-path: C:\Users\Byron Dumaya\Downloads\Pig_Tracking\data
+path: C:\Users\Byron Dumaya\Downloads\Pig_Tracking New\data
 test: test/images
 train: train/images
 val: valid/images

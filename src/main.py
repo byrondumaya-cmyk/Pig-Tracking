@@ -110,6 +110,8 @@ class SwineHealthMonitor:
 
         # AI Detector
         model_path = Path(self.cfg.inference.model_path)
+        model_name = getattr(self.cfg.inference, 'model_name', 'unknown')
+        model_version = getattr(self.cfg.inference, 'model_version', '?')
         if not model_path.exists():
             raise FileNotFoundError(
                 f"ONNX model not found: {model_path}\n"
@@ -123,7 +125,13 @@ class SwineHealthMonitor:
             intra_op_threads=self.cfg.inference.intra_op_threads,
             inter_op_threads=self.cfg.inference.inter_op_threads,
         )
-        logger.info("Detector loaded: %s", model_path)
+        logger.info(
+            "[MODEL] %s v%s — %s (conf=%.2f, iou=%.2f, imgsz=%d)",
+            model_name, model_version, model_path,
+            self.cfg.inference.confidence_threshold,
+            self.cfg.inference.iou_threshold,
+            self.cfg.inference.input_size,
+        )
 
         # SORT Tracker
         self.tracker = PigTracker(
@@ -133,18 +141,30 @@ class SwineHealthMonitor:
         )
         logger.info("Tracker initialized.")
 
+        # Confirmation Filter (Alupihan-inspired)
+        votes = getattr(self.cfg.inference, 'confirmation_votes', 2)
+        window = getattr(self.cfg.inference, 'confirmation_window', 4)
+        from src.inference.detector import ConfirmationFilter
+        self.confirmation_filter = ConfirmationFilter(votes, window)
+        logger.info("Confirmation Filter initialized (votes=%d, window=%d)", votes, window)
+
         # Thermal camera (optional)
         if self.cfg.thermal.enabled:
             try:
                 from src.thermal.thermal_reader import MLX90640Reader
                 from src.thermal.thermal_mapper import assign_temperatures
+                rotation_deg = getattr(self.cfg.thermal, 'display_rotation_deg', 0.0)
                 self.thermal_reader = MLX90640Reader(
                     i2c_address=self.cfg.thermal.i2c_address,
                     refresh_hz=self.cfg.thermal.refresh_hz,
                     i2c_bus=self.cfg.thermal.i2c_bus,
+                    rotation_deg=float(rotation_deg),
                 )
                 self.thermal_mapper = assign_temperatures
-                logger.info("MLX90640 thermal camera initialized.")
+                logger.info(
+                    "MLX90640 thermal camera initialized (rotation=%.1f° CW).",
+                    rotation_deg,
+                )
             except Exception as exc:
                 logger.warning("Thermal unavailable: %s. Continuing without.", exc)
                 self.cfg.thermal.enabled = False
@@ -315,9 +335,11 @@ class SwineHealthMonitor:
             detections = self.detector.detect(frame)
             detect_time = time.perf_counter() - t0
 
-            # --- Tracking ---
+            # --- Tracking & Confirmation ---
             t0 = time.perf_counter()
-            tracked_pigs = self.tracker.update(detections, self.cfg.classes)
+            tracked_pigs_raw = self.tracker.update(detections, self.cfg.classes)
+            # Filter tracks using confirmation voting
+            tracked_pigs = self.confirmation_filter.filter(tracked_pigs_raw, frame_count)
             track_time = time.perf_counter() - t0
 
             # --- Pig Counting: Update occupancy count (current pigs in view) ---

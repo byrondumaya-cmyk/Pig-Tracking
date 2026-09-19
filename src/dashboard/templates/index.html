@@ -11,6 +11,13 @@
 
 {% block content %}
 
+<!-- Model Info Banner (Alupihan-inspired) -->
+<div class="model-banner" id="model-banner" style="display: none; background: #1a1a1a; padding: 10px; border-radius: 6px; border: 1px solid #333; margin-bottom: 15px; font-size: 0.9em;">
+    <span style="color: #4CAF50;">⚡ ACTIVE MODEL:</span> 
+    <strong id="model-name-display">Loading...</strong> 
+    <span style="color: #888; margin-left: 10px;">Conf: <span id="model-conf-display">--</span> | IoU: <span id="model-iou-display">--</span></span>
+</div>
+
 <!-- Mobile-only Stats Row (horizontally scrollable) -->
 <div class="stats-pills">
     <div class="stat-pill">

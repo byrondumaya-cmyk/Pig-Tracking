@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 from flask import Blueprint, Response, current_app, jsonify, render_template, request
 
-from src.config_loader import CONFIG_PATH
+from src.config_loader import CONFIG_PATH, PROJECT_ROOT
 from src.dashboard.sys_info import get_network_mode, get_ap_ssid, get_current_ip, get_storage_usage_pct
 from src.dashboard.auth import dev_required
 
@@ -37,6 +37,29 @@ _START_TIME = time.time()
 def index():
     """Main Dashboard: Side-by-Side view + Alert Log."""
     return render_template('index.html')
+
+
+@dashboard_bp.route('/api/model_info')
+def model_info():
+    """Returns information about the currently active YOLO model."""
+    try:
+        model_info_path = PROJECT_ROOT / "models" / "model_info.json"
+        if model_info_path.exists():
+            with open(model_info_path, "r") as f:
+                return jsonify(json.load(f))
+    except Exception as e:
+        current_app.logger.error(f"Failed to load model info: {e}")
+        
+    # Fallback if json not found but config has values
+    cfg = current_app.config.get("SHM_CONFIG")
+    if cfg:
+        return jsonify({
+            "model_name": getattr(cfg.inference, "model_name", "unknown"),
+            "model_version": getattr(cfg.inference, "model_version", "?"),
+            "confidence_threshold": cfg.inference.confidence_threshold,
+            "iou_threshold": cfg.inference.iou_threshold
+        })
+    return jsonify({"error": "No model info available"}), 404
 
 
 @dashboard_bp.route('/video_feed')
@@ -77,6 +100,18 @@ def settings():
                     config.setdefault('storage', {})['ambient_retention_days'] = int(s['ambient_retention_days'])
                 if 'snapshots_retention_days' in s:
                     config.setdefault('storage', {})['snapshots_retention_days'] = int(s['snapshots_retention_days'])
+                    
+            if 'inference' in data:
+                inf = data['inference']
+                if 'confidence_threshold' in inf:
+                    config.setdefault('inference', {})['confidence_threshold'] = float(inf['confidence_threshold'])
+                if 'confirmation_votes' in inf:
+                    config.setdefault('inference', {})['confirmation_votes'] = int(inf['confirmation_votes'])
+            
+            if 'thermal' in data:
+                thm = data['thermal']
+                if 'display_rotation_deg' in thm:
+                    config.setdefault('thermal', {})['display_rotation_deg'] = float(thm['display_rotation_deg'])
 
             with open(CONFIG_PATH, "w") as f:
                 yaml.dump(config, f, default_flow_style=False, allow_unicode=True)

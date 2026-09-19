@@ -210,6 +210,7 @@ class PigDetector:
             return []
         ids = np.asarray(indices, dtype=int).reshape(-1)
 
+
         results = []
         for idx in ids:
             results.append({
@@ -218,3 +219,56 @@ class PigDetector:
                 "class_id": int(class_ids[idx]),
             })
         return results
+
+
+class ConfirmationFilter:
+    """
+    Stateful filter that requires N positive detections (votes) within a rolling window 
+    of M frames to confirm a detection. This reduces ghost detections and flickering.
+    Adapted from the Alupihan Rover project's confirmation state machine.
+    """
+    def __init__(self, votes_required: int = 2, window_size: int = 4):
+        self.votes_required = votes_required
+        self.window_size = window_size
+        # track_id -> list of boolean detection flags (True=seen this frame)
+        self._history: dict[int, list[bool]] = {}
+
+    def filter(self, tracked_pigs: list, current_frame: int) -> list:
+        """
+        Updates the voting history and returns only pigs that meet the confirmation threshold.
+        Call this every frame with the output of PigTracker.
+        """
+        current_track_ids = {pig.track_id for pig in tracked_pigs}
+        
+        # Advance history for all known tracks
+        to_delete = []
+        for track_id, history in self._history.items():
+            # Append True if seen this frame, False otherwise
+            history.append(track_id in current_track_ids)
+            # Keep only the latest `window_size` frames
+            if len(history) > self.window_size:
+                history.pop(0)
+            
+            # If the track hasn't been seen at all in the window, prune it
+            if not any(history):
+                to_delete.append(track_id)
+                
+        for track_id in to_delete:
+            del self._history[track_id]
+
+        # Add new tracks that appeared this frame
+        for track_id in current_track_ids:
+            if track_id not in self._history:
+                # Initialize with True for the current frame
+                self._history[track_id] = [True]
+
+        # Filter the current tracked pigs
+        confirmed_pigs = []
+        for pig in tracked_pigs:
+            # Count the True values in the history window
+            votes = sum(self._history[pig.track_id])
+            if votes >= self.votes_required:
+                confirmed_pigs.append(pig)
+
+        return confirmed_pigs
+

@@ -59,6 +59,11 @@ document.addEventListener('DOMContentLoaded', () => {
         saveStorageBtn.addEventListener('click', saveStorageConfig);
     }
     
+    const saveAiBtn = document.getElementById('save-ai-btn');
+    if (saveAiBtn) {
+        saveAiBtn.addEventListener('click', saveAiConfig);
+    }
+    
     const runRetentionBtn = document.getElementById('run-retention-btn');
     if (runRetentionBtn) {
         runRetentionBtn.addEventListener('click', runRetentionPolicy);
@@ -383,9 +388,37 @@ async function saveStorageConfig() {
             method: 'POST',
             body: JSON.stringify(config)
         });
-        showToast('Storage settings saved', 'success');
+        showToast(data.message, data.status === 'success' ? 'success' : 'error');
     } catch (e) {
-        showToast('Failed to save storage settings: ' + e.message, 'error');
+        showToast('Failed to save storage settings', 'error');
+    } finally {
+        btn.disabled = false;
+    }
+}
+
+// ── AI & Thermal Settings ───────────────────────────────────────────────────
+async function saveAiConfig() {
+    const btn = document.getElementById('save-ai-btn');
+    btn.disabled = true;
+    
+    const config = {
+        inference: {
+            confidence_threshold: parseFloat(document.getElementById('confidence_threshold').value),
+            confirmation_votes: parseInt(document.getElementById('confirmation_votes').value)
+        },
+        thermal: {
+            display_rotation_deg: parseFloat(document.getElementById('display_rotation_deg').value)
+        }
+    };
+
+    try {
+        const data = await apiFetch('/settings', {
+            method: 'POST',
+            body: JSON.stringify(config)
+        });
+        showToast(data.message, data.status === 'success' ? 'success' : 'error');
+    } catch (e) {
+        showToast('Failed to save AI/Thermal settings', 'error');
     } finally {
         btn.disabled = false;
     }

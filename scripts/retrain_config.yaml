@@ -1,0 +1,25 @@
+# scripts/retrain_config.yaml
+model:
+  base: "yolov8n.pt"          # YOLOv8 nano (reduced due to VRAM limits)
+  name: "swine_behavior_v2"
+  
+dataset:
+  path: "data/data.yaml"
+  
+training:
+  epochs: 80
+  patience: 20
+  batch: 4
+  imgsz: 640
+  optimizer: "AdamW"
+  lr0: 0.001
+  
+augmentation:
+  degrees: 10.0
+  flipud: 0.5
+  fliplr: 0.5
+  mosaic: 1.0
+  mixup: 0.1
+  hsv_h: 0.015
+  hsv_s: 0.7
+  hsv_v: 0.4

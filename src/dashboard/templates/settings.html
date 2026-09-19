@@ -228,6 +228,38 @@
 
         <div class="panel" style="margin-top: var(--space-5);">
             <div class="panel__header">
+                <h3 class="panel__title">AI Model & Thermal Orientation</h3>
+            </div>
+            <div class="panel__body">
+                <div class="info-box" style="margin-bottom: var(--space-4);">
+                    <strong>Model Swapping:</strong> Upload new ONNX models to <code>/models/</code> and update the <code>config.yaml</code> inference section.
+                </div>
+                
+                <div class="form-grid-2">
+                    <div class="form-group">
+                        <label>Active YOLO Model</label>
+                        <input type="text" class="form-control" value="{{ config.inference.model_path }}" readonly disabled style="opacity: 0.7;">
+                    </div>
+                    <div class="form-group">
+                        <label>Thermal Rotation (° CW)</label>
+                        <input type="number" id="display_rotation_deg" class="form-control" step="45" value="{{ config.thermal.display_rotation_deg|default(45) }}">
+                        <div class="form-help">Set to 45 if camera is mis-mounted. Affects display and zoning.</div>
+                    </div>
+                    <div class="form-group">
+                        <label>Confidence Threshold</label>
+                        <input type="number" id="confidence_threshold" class="form-control" step="0.05" min="0.1" max="0.9" value="{{ config.inference.confidence_threshold|default(0.45) }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Confirmation Votes</label>
+                        <input type="number" id="confirmation_votes" class="form-control" min="1" max="10" value="{{ config.inference.confirmation_votes|default(2) }}">
+                    </div>
+                </div>
+                <button class="btn btn-primary" id="save-ai-btn" style="margin-top: var(--space-3);">Save AI & Thermal Settings</button>
+            </div>
+        </div>
+
+        <div class="panel" style="margin-top: var(--space-5);">
+            <div class="panel__header">
                 <h3 class="panel__title">Storage Management</h3>
             </div>
             <div class="panel__body">

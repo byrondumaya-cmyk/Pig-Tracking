@@ -1,0 +1,23 @@
+{
+  "model_name": "swine_behavior_v2",
+  "model_version": "2.0.0",
+  "base_model": "yolov8n",
+  "training_run": "swine_behavior_v2",
+  "onnx_file": "best.onnx",
+  "pt_file": "best.pt",
+  "input_size": 640,
+  "num_classes": 8,
+  "class_names": [
+    "lying",
+    "standing",
+    "walking",
+    "sitting",
+    "feeding",
+    "drinking",
+    "social_interaction",
+    "aggression"
+  ],
+  "map50_val": 0.7409,
+  "export_date": "2026-09-19T16:51:35.808595",
+  "format": "ONNX"
+}

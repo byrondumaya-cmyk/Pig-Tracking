@@ -23,6 +23,9 @@ from pathlib import Path
 
 import yaml
 
+# Force UTF-8 output on Windows
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8')
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -177,7 +180,7 @@ def main() -> None:
             
             idx += 1
             
-    print("\n✅ Dataset Merge Complete.")
+    print("\n[OK] Dataset Merge Complete.")
     print("Data is ready for training in data/ directory.")
 
 if __name__ == "__main__":

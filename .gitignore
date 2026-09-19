@@ -45,6 +45,7 @@ venv/
 .venv/
 env/
 ENV/
+venv_train/
 
 # --- IDE & Editor ---
 .vscode/

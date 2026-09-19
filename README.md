@@ -4,7 +4,7 @@
 
 # 🐷 Offline AI Swine Health Monitoring System
 
-An edge-AI capstone project that detects **pig behavioral abnormalities** and **elevated body temperature** in real-time using a Raspberry Pi 4B, USB camera, and AMG8833 thermal sensor — entirely **offline**, no internet required.
+An edge-AI capstone project that detects **pig behavioral abnormalities** and **elevated body temperature** in real-time using a Raspberry Pi 4B, USB camera, and MLX90640 thermal sensor — entirely **offline**, no internet required.
 
 ---
 
@@ -12,9 +12,9 @@ An edge-AI capstone project that detects **pig behavioral abnormalities** and **
 
 | Feature | Description |
 |---------|-------------|
-| **Pig Detection** | YOLOv8n detects and classifies 8 pig behaviors (lying, standing, walking, etc.) |
+| **Pig Detection** | YOLOv8s detects and classifies 8 pig behaviors (lying, standing, walking, etc.) |
 | **Multi-Pig Tracking** | SORT tracker assigns unique Pig IDs across frames |
-| **Thermal Sensing** | AMG8833 maps body temperature to individual pigs via zone-based mapping |
+| **Thermal Sensing** | MLX90640 maps body temperature to individual pigs via zone-based mapping |
 | **Health Risk Score** | Explainable 5-level risk engine combining behavior + temperature + history |
 | **Live Dashboard** | Flask web dashboard — view live feed, alerts, and pig history from your phone |
 | **SQLite Database** | All data stored locally; survives reboots |
@@ -29,7 +29,7 @@ An edge-AI capstone project that detects **pig behavioral abnormalities** and **
 | Single-Board Computer | Raspberry Pi 4B (4GB RAM recommended) |
 | OS | Raspberry Pi OS **Bookworm 64-bit** |
 | USB Camera | Any UVC-compatible USB webcam |
-| Thermal Sensor | **Adafruit AMG8833** (8×8 IR grid, I2C) |
+| Thermal Sensor | **MLX90640** (32x24 IR grid, I2C) |
 | Storage | microSD Card ≥ 32GB (Class 10 / A1) |
 | Training PC | Windows 11 + NVIDIA GPU (RTX 4050 used in development) |
 

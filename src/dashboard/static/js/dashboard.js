@@ -283,6 +283,21 @@ document.addEventListener('DOMContentLoaded', () => {
     fetchAlerts();
     fetchApInfo(); // One-time: AP config doesn't change at runtime
 
+    async function fetchModelInfo() {
+        try {
+            const data = await apiFetch('/api/model_info');
+            if (data.error) return;
+            
+            const banner = document.getElementById('model-banner');
+            if (banner) banner.style.display = 'block';
+            
+            updateText('model-name-display', `${data.model_name} v${data.model_version}`);
+            updateText('model-conf-display', data.confidence_threshold.toFixed(2));
+            updateText('model-iou-display', data.iou_threshold.toFixed(2));
+        } catch (e) {}
+    }
+    fetchModelInfo(); // One-time fetch
+
     // Start intervals
     setInterval(fetchThermal, 200);   // Fast refresh for thermal mapping
     setInterval(fetchBehaviors, 1000); // 1s for behaviors
