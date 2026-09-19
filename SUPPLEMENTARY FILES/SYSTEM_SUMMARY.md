@@ -99,7 +99,7 @@ The system targets **African Swine Fever (ASF)** and other illnesses by detectin
 | Web Dashboard (LAN Mode) | `http://[pi-local-ip]:5000` |
 | WebSocket (mobile app) | `ws://[pi-ip]:8765` |
 | AP WiFi SSID | `PigDashboard` |
-| AP WiFi Password | `pigdashboard123` |
+| AP WiFi Password | `PigDashboard2026!` |
 
 ---
 

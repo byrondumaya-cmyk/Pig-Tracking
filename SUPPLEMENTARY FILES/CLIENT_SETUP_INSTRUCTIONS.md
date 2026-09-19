@@ -12,7 +12,7 @@ Welcome to the **Pig Tracking System**! This guide covers how to connect to the 
 
 1. On your Android phone, go to **Settings → WiFi**
 2. Connect to: **`PigDashboard`**
-3. Password: **`pigdashboard123`**
+3. Password: **`PigDashboard2026!`**
 
 ### Step 2: Install the App
 
@@ -35,7 +35,7 @@ Tap the downloaded file to install. If prompted, enable **"Install from unknown 
 
 ### Step 1: Connect to the Pi's WiFi
 
-Same as above — connect to `PigDashboard` with password `pigdashboard123`.
+Same as above — connect to `PigDashboard` with password `PigDashboard2026!`.
 
 ### Step 2: Open the Dashboard
 
@@ -54,7 +54,7 @@ The dashboard shows:
 
 Click **Settings** in the dashboard. Enter the developer password:
 ```
-pigdashboard123
+PigDashboard2026!
 ```
 
 From here you can adjust:

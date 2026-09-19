@@ -6,7 +6,7 @@
 The Pig Tracking System acts as its own Wi-Fi router in the barn.
 1. Stand near the Raspberry Pi in the barn.
 2. Open your smartphone or laptop Wi-Fi settings.
-3. Connect to the network named **PigDashboard** (Password: `pigdashboard123`).
+3. Connect to the network named **PigDashboard** (Password: `PigDashboard2026!`).
 4. Open a web browser and navigate to `http://10.0.0.1:5000`.
 
 ### 2. Dashboard Overview

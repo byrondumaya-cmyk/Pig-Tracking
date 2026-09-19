@@ -137,7 +137,7 @@ dashboard:
   # Chart history window shown on dashboard (in minutes)
   chart_window_minutes: 30
   # Developer Mode credentials
-  developer_password: "pigdashboard123"
+  developer_password: "PigDashboard2026!"
 
 # ----- Networking -------------------------------------------
 network:
@@ -146,7 +146,7 @@ network:
   mode: "ap"           # "lan" | "ap"
   ap:
     ssid: "PigDashboard"
-    password: "pigdashboard123"
+    password: "PigDashboard2026!"
     # ISO 3166-1 country where this AP is deployed. Change before deployment.
     country_code: "PH"
     ip: "192.168.4.1"

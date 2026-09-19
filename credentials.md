@@ -11,7 +11,7 @@ The Raspberry Pi broadcasts its own WiFi hotspot when in AP mode.
 | Field | Value |
 |-------|-------|
 | **Network Name (SSID)** | `PigDashboard` |
-| **Password** | `pigdashboard123` |
+| **Password** | `PigDashboard2026!` |
 | **Pi IP (after connecting)** | `192.168.4.1` |
 | **Subnet** | `192.168.4.0/24` |
 | **Country Code** | `PH` |
@@ -28,7 +28,7 @@ Accessible via browser on any device connected to the Pi's network.
 |-------|-------|
 | **URL (AP Mode)** | `http://192.168.4.1:5000` |
 | **URL (LAN Mode)** | `http://[pi-local-ip]:5000` |
-| **Developer Password** | `pigdashboard123` |
+| **Developer Password** | `PigDashboard2026!` |
 | **Port** | `5000` |
 
 > 💡 The developer password is required to access the **Settings** page where you can edit thresholds, GSM numbers, and system parameters live without restarting the Pi.
@@ -84,12 +84,12 @@ All credentials live in **`config/config.yaml`**:
 
 ```yaml
 dashboard:
-  developer_password: "pigdashboard123"   # ← Change this
+  developer_password: "PigDashboard2026!"   # ← Change this
 
 network:
   ap:
     ssid: "PigDashboard"               # ← Change this
-    password: "pigdashboard123"          # ← Change this
+    password: "PigDashboard2026!"          # ← Change this
 ```
 
 After editing `config.yaml`, restart the service on the Pi:
