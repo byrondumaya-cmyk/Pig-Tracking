@@ -14,6 +14,16 @@ rootProject.layout.buildDirectory.value(newBuildDir)
 subprojects {
     val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
+
+    afterEvaluate {
+        tasks.withType<JavaCompile> {
+            sourceCompatibility = "17"
+            targetCompatibility = "17"
+        }
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
+            kotlinOptions.jvmTarget = "17"
+        }
+    }
 }
 subprojects {
     project.evaluationDependsOn(":app")
