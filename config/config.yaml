@@ -137,7 +137,7 @@ dashboard:
   # Chart history window shown on dashboard (in minutes)
   chart_window_minutes: 30
   # Developer Mode credentials
-  developer_password: "pigtracking123"
+  developer_password: "pigdashboard123"
 
 # ----- Networking -------------------------------------------
 network:
@@ -145,8 +145,8 @@ network:
   # mode: "ap"  makes Pi a WiFi access point
   mode: "ap"           # "lan" | "ap"
   ap:
-    ssid: "PigMonitor_AP"
-    password: "pigtracking123"
+    ssid: "PigDashboard"
+    password: "pigdashboard123"
     # ISO 3166-1 country where this AP is deployed. Change before deployment.
     country_code: "PH"
     ip: "192.168.4.1"

@@ -105,7 +105,7 @@ python3 src/main.py
 ### 6. Access Dashboard
 
 - **LAN mode**: Open browser → `http://[pi-ip-address]:5000`
-- **AP mode**: Connect to WiFi `PigMonitor_AP` → Open `http://192.168.4.1:5000`
+- **AP mode**: Connect to WiFi `PigDashboard` → Open `http://192.168.4.1:5000`
 
 ### 7. Run E2E Tests (Local Windows PC only)
 

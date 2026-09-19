@@ -1,91 +1,111 @@
-# Pig Tracking Project - Client Setup Guide
+# Pig Tracking — Client Setup Guide
 
-Welcome to the Pig Tracking Project! Because this project involves heavy machine learning models and large image datasets, the setup process is split into two parts: cloning the source code from GitHub, and downloading the heavy model/data files separately.
+Welcome to the **Pig Tracking System**! This guide covers how to connect to the system and use both the mobile app and the web dashboard.
 
-Follow this step-by-step guide to get the project running on your PC.
-
----
-
-## 1. Prerequisites
-Before you begin, ensure you have the following installed on your PC:
-* **[Git](https://git-scm.com/downloads)** (To clone the repository)
-* **[Python 3.9 - 3.11](https://www.python.org/downloads/)** (Ensure you check the box that says **"Add Python to PATH"** during installation)
+> For credentials (WiFi password, dashboard password), see **[credentials.md](../credentials.md)** in the project root.
 
 ---
 
-## 2. Clone the Repository
-Open your terminal (Command Prompt or PowerShell) and run the following commands to download the source code:
+## Option A — Mobile App (Recommended for farmers)
 
+### Step 1: Connect to the Pi's WiFi
+
+1. On your Android phone, go to **Settings → WiFi**
+2. Connect to: **`PigDashboard`**
+3. Password: **`pigdashboard123`**
+
+### Step 2: Install the App
+
+Open your phone browser and go to:
+```
+https://github.com/byrondumaya-cmyk/Pig-Tracking/releases/latest/download/app-release.apk
+```
+Tap the downloaded file to install. If prompted, enable **"Install from unknown sources"**.
+
+### Step 3: Connect the App to the Pi
+
+1. Open **Pig Tracking** app
+2. Enter the IP: **`192.168.4.1`**
+3. Tap **Connect**
+4. You will see the live pig detection feed and thermal overlay
+
+---
+
+## Option B — Web Dashboard (Browser)
+
+### Step 1: Connect to the Pi's WiFi
+
+Same as above — connect to `PigDashboard` with password `pigdashboard123`.
+
+### Step 2: Open the Dashboard
+
+Open any browser and go to:
+```
+http://192.168.4.1:5000
+```
+
+The dashboard shows:
+- Live annotated YOLO feed (left panel)
+- MLX90640 thermal heatmap (right panel)
+- Real-time SMS alert log
+- Ambient DHT22 temperature and humidity
+
+### Step 3: Access Settings (Developer)
+
+Click **Settings** in the dashboard. Enter the developer password:
+```
+pigdashboard123
+```
+
+From here you can adjust:
+- GSM phone numbers for SMS alerts
+- Alert cooldown timers
+- Temperature thresholds
+- Behavior detection confidence
+
+---
+
+## Option C — LAN Mode (Same router)
+
+If the Pi is connected to the same router as your device (not in AP mode):
+
+1. Find the Pi's IP address by running on the Pi: `hostname -I`
+2. Open browser → `http://[pi-ip]:5000`
+3. For the mobile app → enter `[pi-ip]` in the Connect screen
+
+---
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|---------|
+| Can't find `PigDashboard` WiFi | Make sure `swine-monitor.service` is running on the Pi. SSH in and run `sudo systemctl status swine-monitor.service` |
+| App can't connect | Confirm you are on the `PigDashboard` network, not your home WiFi |
+| Dashboard not loading | Pi may be starting up — wait 30 seconds and refresh |
+| No video feed in app | The TFLite model file (`best.tflite`) must be in `mobile_app/assets/` |
+| SMS alerts not sending | Check GSM module UART connection; verify phone number in Settings |
+
+---
+
+## Raspberry Pi Management (Admin only)
+
+SSH into the Pi:
 ```bash
-# Clone the repository to your local machine
-git clone https://github.com/byrondumaya-cmyk/Pig-Tracking.git
-
-# Navigate into the project folder
-cd Pig-Tracking
+ssh pigtracking@192.168.4.1
 ```
 
----
-
-## 3. Set Up the Python Environment
-It is highly recommended to use a virtual environment so the project dependencies do not interfere with other Python software on your PC.
-
+Common commands:
 ```bash
-# Create a virtual environment named 'venv'
-python -m venv venv
+# Check service status
+sudo systemctl status swine-monitor.service
 
-# Activate the virtual environment (Windows)
-venv\Scripts\activate
+# Restart the service
+sudo systemctl restart swine-monitor.service
 
-# (If you are on macOS/Linux, run this instead: source venv/bin/activate)
+# View live logs
+sudo journalctl -fu swine-monitor.service
+
+# Pull latest code updates
+cd ~/Pig_Tracking && git pull origin main
+sudo systemctl restart swine-monitor.service
 ```
-*Note: Once activated, you should see `(venv)` at the start of your terminal line.*
-
----
-
-## 4. Install Dependencies
-With the virtual environment activated, install all the required Python libraries:
-
-```bash
-# To install the requirements for the Raspberry Pi / Production environment:
-pip install -r requirements-pi.txt
-
-# OR, if you plan to do model training on this PC:
-pip install -r requirements-train.txt
-```
-
----
-
-## 5. Download the Models & Datasets (Important!)
-Because AI models (`.pt` files) and training datasets are extremely large, they are **not** included in the GitHub repository. You must download them separately from the secure storage link provided by the developer.
-
-1. **Download the provided `.zip` file** containing the models and datasets from the developer's Google Drive / Cloud Storage.
-2. **Extract the files** into your `Pig-Tracking` folder so that your folder structure looks like this:
-
-```text
-Pig-Tracking/
-│
-├── data/                  <-- (Place the extracted datasets here)
-│   ├── train/
-│   ├── valid/
-│   └── test/
-│
-├── yolov8n.pt             <-- (Place the base model in the root folder)
-├── best.pt                <-- (Place the custom trained model in the root folder)
-│
-├── src/                   (Already included via GitHub)
-├── config/                (Already included via GitHub)
-└── README.md              (Already included via GitHub)
-```
-
----
-
-## 6. Run the Application
-Once the code is cloned, dependencies are installed, and the heavy files are placed in their correct folders, you are ready to run the system!
-
-Make sure your virtual environment is still active, then run the application (for example, the dashboard):
-
-```bash
-python src/main.py
-```
-
-If you encounter any issues, please reach out for technical support!

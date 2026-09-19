@@ -70,7 +70,7 @@ This tracker is designed for you to follow along as we move from the PC developm
 *Objective: Make the Pi broadcast its own WiFi network for the farm.*
 
 - [ ] **Step 1: Configure hostapd & dnsmasq**
-  - Set up the Pi as an Access Point so you can connect your phone directly to `PigMonitor_AP` without needing a router.
+  - Set up the Pi as an Access Point so you can connect your phone directly to `PigDashboard` without needing a router.
   - *We will do this via terminal commands once the base system is verified.*
   
 - [ ] **Step 2: Enable Auto-Start**

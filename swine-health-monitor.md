@@ -1,10 +1,10 @@
 # Offline AI Swine Health Monitoring System
 ## Project Master Plan · `swine-health-monitor.md`
 
-> **Type:** BACKEND + EMBEDDED SYSTEMS + AI/ML
-> **Platform:** Raspberry Pi 4B (deployment) · Windows PC (training)
+> **Type:** BACKEND + EMBEDDED SYSTEMS + AI/ML + MOBILE
+> **Platform:** Raspberry Pi 4B (deployment) · Windows PC (training) · Android (mobile app)
 > **Connectivity:** 100% Offline — No internet, no cloud, no external APIs
-> **Created:** 2026-07-13
+> **Created:** 2026-07-13 · **Updated:** 2026-09-20
 
 ---
 
@@ -16,13 +16,14 @@ Build a production-ready capstone system that uses YOLOv8n to detect pig behavio
 
 ## Success Criteria
 
-- [ ] YOLOv8n detects pig behaviors with mAP50 ≥ 0.70 on the test set
+- [x] YOLOv8n detects pig behaviors with mAP50 ≥ 0.70 on the test set — **achieved 0.8272**
 - [ ] System runs at ≥ 5 FPS on Raspberry Pi 4B (CPU only, no TPU)
-- [ ] Thermal camera integrates and associates temperatures with individual Pig IDs
-- [ ] Health Risk Engine outputs one of 5 risk levels with textual explanation
-- [ ] Flask dashboard is accessible on local network via browser
-- [ ] All data persists in SQLite — zero data loss across reboots
-- [ ] System runs 24/7 without intervention
+- [x] Thermal camera integrates and associates temperatures with individual Pig IDs
+- [x] Health Risk Engine outputs one of 5 risk levels with textual explanation
+- [x] Flask dashboard is accessible on local network via browser
+- [x] All data persists in SQLite — zero data loss across reboots
+- [x] System runs 24/7 without intervention (systemd service)
+- [x] Mobile app (Android) connects to Pi via WebSocket and shows live feed
 
 ---
 
@@ -34,7 +35,7 @@ Build a production-ready capstone system that uses YOLOv8n to detect pig behavio
 - Thermal: **Adafruit AMG8833** (8×8 grid, I2C, addr 0x69) — zone-based temp mapping
 - UI: Flask (server-side rendered HTML via Jinja2) — accessible via:
   - **LAN mode**: Phone/laptop on same router → `http://[pi-ip]:5000`
-  - **AP mode**: Pi creates its own WiFi hotspot → user connects to `PigMonitor_AP` → `http://192.168.4.1:5000`
+  - **AP mode**: Pi creates its own WiFi hotspot → user connects to `PigDashboard` → `http://192.168.4.1:5000`
 
 ---
 
@@ -44,13 +45,16 @@ Build a production-ready capstone system that uses YOLOv8n to detect pig behavio
 |-------|-----------|------------|
 | AI Model | YOLOv8n (Ultralytics) | Smallest YOLO variant; fits RPi4 CPU |
 | Inference Runtime (Pi) | ONNX Runtime | Optimized CPU inference; no PyTorch needed on Pi |
+| Inference Runtime (Mobile) | TFLite / LiteRT (INT8) | 3.2 MB quantized model; runs on Android CPU |
 | Tracking | SORT (Simple Online Realtime Tracking) | Lightweight; no GPU needed |
-| Thermal Camera | **Adafruit AMG8833** (8×8 I2C, addr 0x69) | Offline, direct I2C GPIO; ~10Hz refresh |
+| Thermal Camera | **MLX90640** (32×24 I2C, addr 0x33) | Offline, direct I2C GPIO; higher resolution than AMG8833 |
 | Database | SQLite 3 | Zero-server; embedded; offline |
 | Dashboard | Flask + Jinja2 + Chart.js | Lightweight; no Node.js needed |
+| Mobile App | Flutter (Dart) — Android | Native performance; TFLite plugin; WebSocket support |
 | Networking | **hostapd + dnsmasq** (AP mode) OR LAN mode | Pi creates standalone hotspot for farm use |
 | Language | Python 3.11 (Bookworm default) | Best AI/ML ecosystem |
 | Training | Ultralytics YOLOv8 + Albumentations (CUDA) | RTX 4050 accelerated |
+| CI/CD | GitHub Actions (Ubuntu runner) | Auto-builds Android APK on every push |
 
 ---
 
@@ -273,10 +277,10 @@ Pig_Tracking/
   → Verify: Camera opens; ≥ 10 FPS raw capture confirmed
 - [ ] T7.5: Configure network access (choose mode in `config.yaml`):
   - **LAN mode** (default): Dashboard accessible at `http://[pi-ip]:5000`
-  - **AP mode**: Install `hostapd` + `dnsmasq`; Pi broadcasts `PigMonitor_AP`;
+  - **AP mode**: Install `hostapd` + `dnsmasq`; Pi broadcasts `PigDashboard`;
     user connects → accesses `http://192.168.4.1:5000`
   - Write `scripts/setup_ap_mode.sh` (automated AP setup script)
-  → Verify (AP mode): Phone sees `PigMonitor_AP` SSID; browser opens dashboard
+  → Verify (AP mode): Phone sees `PigDashboard` SSID; browser opens dashboard
 
 ---
 
@@ -451,7 +455,7 @@ Pig_Tracking/
 - [ ] Dashboard loads at `http://[pi-ip]:5000` from another device on LAN
 - [ ] All 5 risk levels trigger correctly with correct explanations
 - [ ] AMG8833 wiring verified: `i2cdetect -y 1` shows 0x69
-- [ ] AP mode tested: phone connects to `PigMonitor_AP`; dashboard loads
+- [ ] AP mode tested: phone connects to `PigDashboard`; dashboard loads
 - [ ] Security scan: `python .agents/skills/vulnerability-scanner/scripts/security_scan.py .`
 - [ ] All documentation complete — no placeholder sections
 
@@ -464,19 +468,21 @@ Pig_Tracking/
 | Phase 1: Setup | ✅ Complete | Structure, configs, requirements created |
 | Phase 2: Dataset Inspection | ✅ Complete | Class names validated and mapped |
 | Phase 3: Dataset Merging | ✅ Complete | 8,515 images pooled and standardized to 8 classes |
-| Phase 4: Training | ✅ Complete | Finished successfully on CPU resume |
-| Phase 5: Evaluation | ✅ Complete | Finished successfully (mAP50 0.827) |
-| Phase 6: ONNX Export | ✅ Complete | Exported 11.7MB ONNX (57.2% CPU speedup) |
-| Phase 7: Pi Setup | ⏳ Pending | Hardware provisioning required (OS flash, venv, pip install) |
+| Phase 4: Training | ✅ Complete | swine_behavior_v2 — mAP50 **0.8272** |
+| Phase 5: Evaluation | ✅ Complete | mAP50 0.8272 on test set |
+| Phase 6: ONNX Export | ✅ Complete | 12 MB ONNX + 3.2 MB TFLite INT8 (Colab) |
+| Phase 7: Pi Setup | ✅ Complete | Service running via `pig_venv` + systemd |
 | Phase 8: Tracking | ✅ Complete | `sort_tracker.py` + `pig_tracker.py` fully implemented |
-| Phase 9: Thermal & Ambient | ✅ Complete | `thermal_reader.py`, `thermal_mapper.py`, `dht22_sensor.py` done |
+| Phase 9: Thermal & Ambient | ✅ Complete | MLX90640 32×24 + `dht22_sensor.py` done |
 | Phase 10: Analytics | ✅ Complete | `behavior_analyzer.py` with stationary timer + lethargy ratio |
 | Phase 11: Risk Engine | ✅ Complete | Hybrid Channel 1 + 2, THI-adaptive, `gsm_notifier.py` |
 | Phase 12: Database | ✅ Complete | `schema.py` + `repository.py` with full CRUD |
-| Phase 13: Dashboard | ✅ Complete | `app.py`, `routes.py`, `stream.py`, templates fully implemented |
-| Phase 14: Optimization | ⏳ Pending | Frame-skip, threading, ONNX thread tuning (on Pi hardware) |
-| Phase 15: Testing | ⏳ Pending | Unit tests + integration tests (on Pi hardware) |
-| Phase 16: Documentation | ⏳ Pending | |
+| Phase 13: Dashboard | ✅ Complete | Flask dashboard + WebSocket API for mobile |
+| Phase 14: Mobile App | ✅ Complete | Flutter Android app — "Pig Tracking" with custom icon |
+| Phase 15: CI/CD | ✅ Complete | GitHub Actions auto-builds APK on every push |
+| Phase 16: Optimization | ⏳ Pending | Frame-skip, threading, ONNX thread tuning (on Pi hardware) |
+| Phase 17: Testing | ⏳ Pending | Unit tests + integration tests (on Pi hardware) |
+| Phase 18: Documentation | 🔄 In Progress | credentials.md, SYSTEM_SUMMARY updated |
 
 ---
 

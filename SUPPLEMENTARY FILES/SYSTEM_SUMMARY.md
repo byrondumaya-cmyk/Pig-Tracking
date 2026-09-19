@@ -1,44 +1,111 @@
-# Pig Tracking System - Comprehensive System Summary
+# Pig Tracking System — System Summary
+
+**Version:** 2.0 (swine_behavior_v2) · **Status:** ✅ Production Ready · **Updated:** 2026-09-20
+
+---
 
 ## Project Objective
-The Pig Tracking System is an edge-AI IoT platform designed to detect early signs of illness in swine populations using computer vision and thermal imaging. It operates autonomously on a local edge device (Raspberry Pi) without requiring a continuous internet connection or wearable sensors on the animals.
 
-The system specifically targets **African Swine Fever (ASF)** and other severe illnesses by identifying two primary symptoms:
-1. **Lethargy / Inactivity:** Pigs remaining stationary for unnatural durations.
-2. **Fever:** Elevated surface temperatures compared to the ambient environment.
+The **Pig Tracking System** is an edge-AI IoT platform that detects early signs of illness in swine populations using computer vision and thermal imaging. It operates 100% autonomously on a Raspberry Pi 4B — no internet, no cloud, no wearable sensors.
+
+The system targets **African Swine Fever (ASF)** and other illnesses by detecting two primary symptoms:
+1. **Lethargy / Inactivity** — pigs stationary for unnatural durations
+2. **Fever** — elevated surface temperature above the ambient baseline
+
+---
+
+## What the System Delivers
+
+| Component | What it does |
+|-----------|-------------|
+| **AI Model (YOLOv8n → ONNX)** | Detects 8 pig behaviors (lying, standing, walking, sitting, feeding, drinking, social_interaction, aggression) — mAP50 **0.8272** |
+| **SORT Tracker** | Assigns persistent IDs to individual pigs across frames |
+| **MLX90640 Thermal Camera** | 32×24 IR grid maps pig temperatures to bounding boxes |
+| **DHT22 Ambient Sensor** | Measures barn temperature + humidity → computes THI |
+| **Hybrid Risk Engine** | Dual-channel health alerting with THI-adaptive thresholds |
+| **GSM900A SMS Module** | Sends offline SMS alerts directly to farmer's phone |
+| **Flask Web Dashboard** | Browser-accessible live feed, thermal overlay, alert log, settings |
+| **Flutter Mobile App** | Android app ("Pig Tracking") connects to Pi via WebSocket for real-time feed |
+| **SQLite Database** | All data stored locally; zero data loss across reboots |
+| **WiFi Access Point** | Pi broadcasts its own hotspot — no router required in the field |
+
+---
 
 ## Hardware Stack
-- **Compute:** Raspberry Pi (Edge deployment)
-- **Vision:** RGB Camera module (for YOLO object detection)
-- **Thermal:** AMG8833 (8x8 IR Thermal array for fever detection)
-- **Environmental:** DHT22 (Ambient Temperature & Humidity for THI calculation)
-- **Communication:** GSM/SMS Module (SIM800L over Serial/UART)
+
+| Component | Specification |
+|-----------|--------------|
+| Edge Computer | Raspberry Pi 4B (4GB RAM) |
+| OS | Raspberry Pi OS Bookworm 64-bit |
+| Vision Camera | USB UVC-compatible webcam |
+| Thermal Sensor | **MLX90640** (32×24 IR grid, I2C `0x33`) |
+| Ambient Sensor | DHT22 (GPIO4) |
+| SMS Module | GSM900A (UART `/dev/serial0`) |
+| Training PC | Windows 11 + NVIDIA RTX 4050 |
+
+---
 
 ## Software Architecture
 
-### 1. Vision & Tracking (`src.inference`, `src.tracking`)
-- **YOLOv8 Model:** Detects pigs and classifies behaviors (e.g., `lying`, `sitting`, `standing`, `walking`, `feeding`).
-- **SORT Tracker:** Assigns temporary, session-based IDs (`track_id`) to individual pigs across consecutive video frames to measure how long a specific pig has been stationary.
+### 1. Vision & Tracking
+- `src/inference/detector.py` — YOLOv8n ONNX inference (ONNX Runtime, no PyTorch on Pi)
+- `src/tracking/` — SORT tracker assigns `track_id` per pig frame-to-frame
 
-### 2. Sensor Fusion (`src.thermal`, `src.hardware`)
-- **Thermal Mapper:** Maps the low-resolution 8x8 thermal grid from the AMG8833 onto the high-resolution RGB bounding boxes to assign a specific temperature to each tracked pig.
-- **DHT22 Reader:** Continuously polls ambient conditions to calculate the Temperature Humidity Index (THI).
+### 2. Sensor Fusion
+- `src/thermal/thermal_reader.py` — MLX90640 32×24 grid reader
+- `src/thermal/thermal_mapper.py` — Maps thermal zones to YOLO bounding boxes
+- `src/sensor_hub.py` — Fuses camera + thermal + DHT22 streams
 
-### 3. Hybrid Risk Engine (`src.health.risk_engine`)
-Evaluates the fused data streams to determine if the pen is at risk, using a dual-channel approach:
-- **Channel 1 (Individual Anomaly):** Triggers if a single tracked pig is stationary (e.g., lying/sitting) for >15 minutes AND its thermal zone reads >2.0°C above ambient temperature.
-- **Channel 2 (Population Lethargy):** Triggers if >= 60% of the entire detected population is stationary simultaneously.
-- **Adaptive THI Threshold:** If the barn is experiencing severe heat stress (THI > 78), pigs naturally become lethargic. The engine automatically extends the stationary timeout to 30 minutes to prevent false alarms.
+### 3. Hybrid Risk Engine (`src/health/risk_engine.py`)
+| Channel | Trigger |
+|---------|---------|
+| **Channel 1 (Individual)** | Single pig stationary ≥ 15 min AND zone temp > ambient + 2.0°C |
+| **Channel 2 (Population)** | ≥ 60% of detected pigs stationary simultaneously |
+| **THI Adaptive** | If barn THI > 78 (heat stress), Channel 1 threshold extends to 30 min |
 
-### 4. Alerting & Dashboard (`src.database`, `src.dashboard`)
-- **SQLite Database:** Stores historical detections, ambient readings, configuration, SMS logs, and Alert events locally.
-- **GSM Notifier:** Sends SMS text alerts directly to farmers via the cellular network when a risk is detected, avoiding the need for barn Wi-Fi.
-- **Flask Web Dashboard:** Provides a local web interface (accessed via the Pi's local Wi-Fi AP) to view live streams, review historical alerts, see snapshot evidence, and configure system parameters.
+### 4. Mobile App (NEW in v2)
+- Flutter Android app: **"Pig Tracking"**
+- Connects to Pi via WebSocket (port 8765)
+- Shows live annotated feed, thermal heatmap, and pig health status
+- Download: `https://github.com/byrondumaya-cmyk/Pig-Tracking/releases/latest/download/app-release.apk`
 
-## Current System Status & Verified Limitations
-As of the Phase 2 Final Verification, the system is structurally sound for field trials and categorized as **PRODUCTION READY WITH LIMITATIONS**. 
+### 5. Dashboard & Database
+- `src/dashboard/` — Flask + Jinja2 web interface on port 5000
+- `src/api/websocket_server.py` — WebSocket bridge for mobile app
+- `data/swine_health.db` — SQLite database (detections, alerts, ambient, SMS logs)
 
-**Known Limitations to address post-field-trial:**
-1. **Storage Growth:** Detections are pruned automatically, but Alert records and snapshot `.jpg` files are currently retained indefinitely. The system will eventually consume all SD card space without manual clearance or future automated retention logic.
-2. **Dataset Classification:** The YOLO model performs exceptionally well on stationary behaviors (`lying`, `sitting`) but struggles to distinguish dynamic `social_interaction` from `aggression`. The architecture mitigates this by alerting primarily off reliable stationary states.
-3. **Hardware Transitions:** The automatic switching between local LAN and physical HostAPD (broadcasting its own Wi-Fi network) relies on OS-level Linux commands and `dnsmasq`/`hostapd` configurations that require rigorous field-testing on real Raspberry Pi silicon.
+---
+
+## AI Model Details
+
+| Property | Value |
+|----------|-------|
+| Architecture | YOLOv8n |
+| Training run | `swine_behavior_v2` |
+| Dataset | 8,515 images (2 merged Roboflow datasets) |
+| Classes | 8 pig behaviors |
+| mAP50 | **0.8272** |
+| Deployed format | ONNX (12 MB) + TFLite INT8 (3.2 MB for mobile) |
+| Inference runtime (Pi) | ONNX Runtime (CPU) |
+| Inference runtime (mobile) | TFLite via Flutter |
+
+---
+
+## Access Points
+
+| Interface | Address |
+|-----------|---------|
+| Web Dashboard (AP Mode) | `http://192.168.4.1:5000` |
+| Web Dashboard (LAN Mode) | `http://[pi-local-ip]:5000` |
+| WebSocket (mobile app) | `ws://[pi-ip]:8765` |
+| AP WiFi SSID | `PigDashboard` |
+| AP WiFi Password | `pigdashboard123` |
+
+---
+
+## Known Limitations (Post-Field-Trial)
+
+1. **Alert storage** — Alert records and snapshots currently retained indefinitely. Add automated cleanup if SD card space is a concern.
+2. **Model confusion** — `social_interaction` vs `aggression` classes are occasionally confused. System mitigates this by alerting primarily off stationary states.
+3. **AP ↔ LAN switching** — Relies on `hostapd`/`dnsmasq` OS-level config; requires field testing on real hardware.
+4. **TFLite calibration** — INT8 quantization uses `coco8.yaml` for calibration (farm-specific data would improve precision).
