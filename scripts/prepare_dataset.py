@@ -1,49 +1,50 @@
 import os
 import argparse
+import yaml
 from pathlib import Path
 
 # The classes we want to KEEP and their new IDs
 TARGET_CLASSES = {
     "lying": 0,
-    "sitting": 1,
-    "standing": 2
+    "standing": 1
 }
 
-def remap_dataset(dataset_dir: str, class_map_file: str):
+def remap_dataset(dataset_dir: str):
     """
-    Reads a YOLO dataset directory, finds all .txt annotation files,
+    Reads a YOLOv8 dataset directory (data.yaml), finds all .txt annotation files,
     and remaps the class IDs according to the old_to_new mapping.
     Drops any bounding boxes that do not match the target classes.
     """
-    # 1. Read the old classes.txt
-    old_classes = []
-    class_file_path = Path(dataset_dir) / class_map_file
-    if not class_file_path.exists():
-        print(f"Error: Could not find {class_map_file} in {dataset_dir}")
+    yaml_path = Path(dataset_dir) / "data.yaml"
+    if not yaml_path.exists():
+        print(f"Error: Could not find data.yaml in {dataset_dir}")
         return
         
-    with open(class_file_path, "r") as f:
-        old_classes = [line.strip().lower() for line in f.readlines()]
+    with open(yaml_path, "r") as f:
+        data = yaml.safe_load(f)
+        
+    old_classes = data.get("names", [])
+    if isinstance(old_classes, dict):
+        # Some yaml formats store names as a dict {0: 'class1', ...}
+        old_classes = [old_classes[i] for i in sorted(old_classes.keys())]
         
     print(f"Original dataset classes: {old_classes}")
     
-    # 2. Build mapping from Old ID -> New ID
-    # e.g. If old classes are ["standing", "aggression", "lying"],
-    # standing (0) -> 2, aggression (1) -> DROP, lying (2) -> 0
     id_mapping = {}
     for old_id, class_name in enumerate(old_classes):
-        if class_name in TARGET_CLASSES:
-            id_mapping[old_id] = TARGET_CLASSES[class_name]
+        class_name_lower = class_name.lower().strip()
+        if class_name_lower in TARGET_CLASSES:
+            id_mapping[old_id] = TARGET_CLASSES[class_name_lower]
             
     print(f"Mapping rules: {id_mapping}")
     
-    # 3. Process all .txt files in the dataset
+    # Process all .txt files in the dataset (labels folders)
     processed_files = 0
     boxes_kept = 0
     boxes_dropped = 0
     
     for txt_file in Path(dataset_dir).rglob("*.txt"):
-        if txt_file.name == class_map_file:
+        if "labels" not in str(txt_file) or txt_file.name == "classes.txt" or "README" in txt_file.name:
             continue
             
         with open(txt_file, "r") as f:
@@ -69,17 +70,19 @@ def remap_dataset(dataset_dir: str, class_map_file: str):
             
         processed_files += 1
         
-    # 4. Overwrite classes.txt with the new classes
-    with open(class_file_path, "w") as f:
-        f.write("lying\nsitting\nstanding\n")
+    # Overwrite data.yaml with the new classes
+    data["nc"] = 2
+    data["names"] = ["lying", "standing"]
+    
+    with open(yaml_path, "w") as f:
+        yaml.dump(data, f, sort_keys=False)
         
-    print(f"Done! Processed {processed_files} files.")
+    print(f"Done! Processed {processed_files} label files.")
     print(f"Kept {boxes_kept} bounding boxes. Dropped {boxes_dropped} complex behaviors.")
     
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Remap YOLO dataset classes to lying, sitting, standing")
+    parser = argparse.ArgumentParser(description="Remap YOLOv8 dataset to lying, standing")
     parser.add_argument("--dir", type=str, required=True, help="Path to the dataset root folder")
-    parser.add_argument("--classes", type=str, default="classes.txt", help="Name of the classes file")
     args = parser.parse_args()
     
-    remap_dataset(args.dir, args.classes)
+    remap_dataset(args.dir)

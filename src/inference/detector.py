@@ -46,7 +46,7 @@ class PigDetector:
         model_path: str | Path,
         confidence_threshold: float = 0.45,
         iou_threshold: float = 0.45,
-        input_size: int = 640,
+        input_size: int = 320,
         intra_op_threads: int = 4,
         inter_op_threads: int = 1,
         enable_profiling: bool = False,

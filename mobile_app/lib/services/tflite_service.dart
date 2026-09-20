@@ -25,7 +25,7 @@ class TFLiteService {
   bool _loading = false;
 
   static const List<String> _labels = [
-    'lying', 'standing', 'walking', 'sitting',
+    'lying', 'standing', 'walking',
     'feeding', 'drinking', 'social_interaction', 'aggression',
   ];
 

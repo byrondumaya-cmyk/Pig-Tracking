@@ -24,7 +24,7 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 # Behaviors considered "stationary" for health risk purposes
-STATIONARY_BEHAVIORS = {"lying", "sitting"}
+STATIONARY_BEHAVIORS = {"lying"}
 
 # Centroid movement threshold to detect "pig has moved" (pixels)
 MOVEMENT_THRESHOLD_PX = 20
