@@ -63,7 +63,10 @@ class GSMNotifier:
         self._repository = repository  # For dynamic recipient lookup
         
         import threading
+        import queue
         self._lock = threading.Lock()
+        self._sms_queue = queue.Queue(maxsize=1)
+        self._sms_worker = None
 
         if _SERIAL_AVAILABLE:
             try:
@@ -175,16 +178,39 @@ class GSMNotifier:
             logger.info(f"SMS cooldown active for '{alert_type}'. {remaining.seconds}s remaining.")
             return False
 
+        if self._sms_worker is None:
+            import threading
+            self._sms_worker = threading.Thread(target=self._worker_loop, daemon=True, name="GSM-Worker")
+            self._sms_worker.start()
+
         success = False
-        for number in phone_numbers:
-            if self._send_sms(number, message):
-                success = True
+        try:
+            # Enqueue the job. If queue is full, put_nowait raises queue.Full and we drop the alert.
+            # Latest-state wins for real-time alerts.
+            self._sms_queue.put_nowait((phone_numbers, message))
+            success = True
+        except queue.Full:
+            logger.warning(f"SMS queue is full. Dropping alert: {alert_type}")
 
         if success:
             self._last_sent[alert_type] = datetime.now()
-            logger.info(f"SMS alert sent [{alert_type}] to {len(phone_numbers)} recipient(s).")
+            logger.info(f"SMS alert queued [{alert_type}] for {len(phone_numbers)} recipient(s).")
 
         return success
+
+    def _worker_loop(self) -> None:
+        """Background thread that consumes SMS tasks and sends them sequentially."""
+        while True:
+            item = self._sms_queue.get()
+            if item is None:
+                # Sentinel to stop
+                break
+            
+            phone_numbers, message = item
+            for number in phone_numbers:
+                self._send_sms(number, message)
+            
+            self._sms_queue.task_done()
 
     def _send_sms(self, number: str, message: str) -> bool:
         """Send a single SMS to one recipient."""
@@ -214,7 +240,14 @@ class GSMNotifier:
         return self._send_at("AT", expected="OK")
 
     def close(self) -> None:
-        """Close the serial port."""
+        """Close the serial port and stop the worker thread."""
+        if self._sms_worker and self._sms_worker.is_alive():
+            try:
+                import queue
+                self._sms_queue.put_nowait(None)
+            except queue.Full:
+                pass
+
         if self._serial:
             try:
                 self._serial.close()
