@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
-import 'package:image_gallery_saver/image_gallery_saver.dart';
+import 'package:gal/gal.dart';
 import '../core/constants.dart';
 import '../services/websocket_service.dart';
 import '../services/tflite_service.dart';
@@ -139,12 +139,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final label = alertType.replaceAll('_', '-');
       final ts = DateTime.now().millisecondsSinceEpoch;
-      final result = await ImageGallerySaver.saveImage(
+      await Gal.putImageBytes(
         imageBytes,
-        quality: 90,
         name: 'pig-alert-$label-$ts',
       );
-      debugPrint('[Screenshot] Saved alert snapshot: $result');
+      debugPrint('[Screenshot] Saved alert snapshot');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('📸 Alert snapshot saved: ${alertType.replaceAll("_", " ")}'),
