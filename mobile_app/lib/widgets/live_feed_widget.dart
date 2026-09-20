@@ -21,7 +21,7 @@ class LiveFeedWidget extends StatelessWidget {
         // Camera Feed
         Image.memory(
           imageBytes,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           gaplessPlayback: true,
         ),
         

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
-import '../core/theme.dart';
 
 /// Initial screen shown when no saved Pi IP exists.
 /// User enters the Pi IP, taps Connect → saved to SharedPreferences.

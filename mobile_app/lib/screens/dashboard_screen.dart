@@ -10,6 +10,7 @@ import '../services/tflite_service.dart';
 import '../widgets/live_feed_widget.dart';
 import '../widgets/thermal_grid_widget.dart';
 import '../widgets/status_chip.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'settings_screen.dart';
 
 class AmbientData {
@@ -49,12 +50,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _loadThresholds();
     _tflite.loadModel();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WebsocketService>().addListener(_onWsData);
     });
     _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _pollPiData());
     _pollPiData();
+  }
+
+  Future<void> _loadThresholds() async {
+    final prefs = await SharedPreferences.getInstance();
+    final conf = prefs.getDouble('confidence_threshold') ?? 0.25;
+    final iou = prefs.getDouble('iou_threshold') ?? 0.45;
+    _tflite.updateThresholds(confidence: conf, iou: iou);
   }
 
   @override
@@ -137,8 +146,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final imageBytes = ws.latestData?.imageBytes;
     if (imageBytes == null || imageBytes.isEmpty) return;
     try {
-      final label = alertType.replaceAll('_', '-');
-      final ts = DateTime.now().millisecondsSinceEpoch;
       await Gal.putImageBytes(
         imageBytes,
         album: 'Pig Alerts',
@@ -174,7 +181,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Center(child: StatusChip(state: ws.state)),
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onPressed: () async {
+              await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+              _loadThresholds();
+            },
           ),
           const SizedBox(width: AppSpacing.sm),
         ],

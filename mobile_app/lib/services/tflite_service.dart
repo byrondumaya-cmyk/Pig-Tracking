@@ -50,12 +50,17 @@ class TFLiteService {
     'feeding', 'drinking', 'social_interaction', 'aggression',
   ];
 
-  // Lowered from 0.35 → 0.25 to account for real-world lighting variance
-  static const double _confThreshold = 0.25;
-  static const double _iouThreshold  = 0.45;
-  static const int    _inputSize     = 640;
+  // Settable thresholds (can be updated from settings at runtime)
+  double confThreshold = 0.25;
+  double iouThreshold  = 0.45;
+  static const int _inputSize     = 640;
 
   bool get isLoaded => _interpreter != null;
+
+  void updateThresholds({double? confidence, double? iou}) {
+    if (confidence != null) confThreshold = confidence;
+    if (iou != null) iouThreshold = iou;
+  }
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -122,7 +127,7 @@ class TFLiteService {
         }
       }
 
-      if (maxScore >= _confThreshold && classId >= 0) {
+      if (maxScore >= confThreshold && classId >= 0) {
         // YOLOv8 bbox: center_x, center_y, width, height (pixel coords in input space)
         final cx = tensor[0][i];
         final cy = tensor[1][i];
@@ -185,11 +190,11 @@ class TFLiteService {
 
   // ── NMS helpers ───────────────────────────────────────────────────────────
 
-  static List<Detection> _nms(List<Detection> dets) {
+  List<Detection> _nms(List<Detection> dets) {
     dets.sort((a, b) => b.confidence.compareTo(a.confidence));
     final kept = <Detection>[];
     for (final det in dets) {
-      if (kept.every((k) => _iou(k.bbox, det.bbox) < _iouThreshold)) {
+      if (kept.every((k) => _iou(k.bbox, det.bbox) < iouThreshold)) {
         kept.add(det);
       }
     }

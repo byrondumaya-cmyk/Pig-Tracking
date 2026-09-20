@@ -1,15 +1,13 @@
-import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
 import '../core/constants.dart';
 import '../services/websocket_service.dart';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const String _kIpKey = 'saved_ip';
+const String _kIpKey = 'pi_ip_address';
 const String _kConfKey = 'confidence_threshold';
 const String _kIouKey = 'iou_threshold';
 
@@ -23,23 +21,10 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // -- Local state
   final _ipCtrl = TextEditingController();
   double _confidence = 0.25;
   double _iou = 0.45;
   bool _saving = false;
-
-  // -- Pi-side state
-  bool _loadingConfig = true;
-  bool _loadingRecipients = true;
-  List<Map<String, dynamic>> _recipients = [];
-  Map<String, dynamic> _alertConfig = {};
-  final _phoneCtrl = TextEditingController();
-
-  String get _baseUrl {
-    final ip = _ipCtrl.text.trim().isNotEmpty ? _ipCtrl.text.trim() : '192.168.4.1';
-    return 'http://admin:PigDashboard2026!@$ip:5000';
-  }
 
   @override
   void initState() {
@@ -50,7 +35,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   void dispose() {
     _ipCtrl.dispose();
-    _phoneCtrl.dispose();
     super.dispose();
   }
 
@@ -64,148 +48,36 @@ class _SettingsScreenState extends State<SettingsScreen> {
       _confidence = prefs.getDouble(_kConfKey) ?? 0.25;
       _iou = prefs.getDouble(_kIouKey) ?? 0.45;
     });
-    _loadPiData();
   }
 
   Future<void> _saveLocal() async {
+    setState(() => _saving = true);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_kIpKey, _ipCtrl.text.trim());
+    final newIp = _ipCtrl.text.trim();
+    
+    await prefs.setString(_kIpKey, newIp);
     await prefs.setDouble(_kConfKey, _confidence);
     await prefs.setDouble(_kIouKey, _iou);
-  }
 
-  // ── Pi API helpers ───────────────────────────────────────────────────────
-
-  Future<void> _loadPiData() async {
-    await Future.wait([_loadRecipients(), _loadAlertConfig()]);
-  }
-
-  Future<void> _loadRecipients() async {
-    setState(() => _loadingRecipients = true);
-    try {
-      final r = await http
-          .get(Uri.parse('$_baseUrl/api/recipients'))
-          .timeout(const Duration(seconds: 5));
-      if (r.statusCode == 200) {
-        final j = jsonDecode(r.body) as Map<String, dynamic>;
-        if (mounted) setState(() => _recipients = List<Map<String, dynamic>>.from(j['recipients'] ?? []));
+    if (mounted) {
+      final ws = context.read<WebsocketService>();
+      // Reconnect immediately to the new IP
+      if (ws.savedIp != newIp || !ws.isConnected) {
+        ws.disconnect();
+        ws.connect(newIp);
       }
-    } catch (_) {}
-    if (mounted) setState(() => _loadingRecipients = false);
-  }
-
-  Future<void> _loadAlertConfig() async {
-    setState(() => _loadingConfig = true);
-    try {
-      final r = await http
-          .get(Uri.parse('$_baseUrl/api/alert_config'))
-          .timeout(const Duration(seconds: 5));
-      if (r.statusCode == 200) {
-        final j = jsonDecode(r.body) as Map<String, dynamic>;
-        if (mounted) setState(() => _alertConfig = Map<String, dynamic>.from(j['config'] ?? {}));
-      }
-    } catch (_) {}
-    if (mounted) setState(() => _loadingConfig = false);
-  }
-
-  Future<void> _addRecipient() async {
-    final phone = _phoneCtrl.text.trim();
-    if (phone.isEmpty) return;
-    try {
-      final r = await http
-          .post(
-            Uri.parse('$_baseUrl/api/recipients'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'phone_number': phone}),
-          )
-          .timeout(const Duration(seconds: 5));
-      if (r.statusCode == 201) {
-        _phoneCtrl.clear();
-        _loadRecipients();
-        if (mounted) _showSnack('✅ Recipient added');
-      } else {
-        if (mounted) _showSnack('❌ Failed: ${jsonDecode(r.body)['message']}');
-      }
-    } catch (e) {
-      if (mounted) _showSnack('❌ Cannot reach Pi');
-    }
-  }
-
-  Future<void> _deleteRecipient(int id) async {
-    try {
-      final r = await http
-          .delete(Uri.parse('$_baseUrl/api/recipients/$id'))
-          .timeout(const Duration(seconds: 5));
-      if (r.statusCode == 200) {
-        _loadRecipients();
-        if (mounted) _showSnack('🗑 Recipient removed');
-      }
-    } catch (_) {
-      if (mounted) _showSnack('❌ Cannot reach Pi');
+      _showSnack('✅ Settings saved');
+      setState(() => _saving = false);
     }
   }
 
   Future<void> _resetToDefaults() async {
-    try {
-      final r = await http
-          .get(Uri.parse('$_baseUrl/api/alert_config/defaults'))
-          .timeout(const Duration(seconds: 5));
-      if (r.statusCode == 200) {
-        final j = jsonDecode(r.body) as Map<String, dynamic>;
-        final defaults = j['defaults'] ?? j['config'] ?? j;
-        if (mounted) {
-          setState(() {
-            _alertConfig = Map<String, dynamic>.from(defaults);
-            _confidence = 0.25;
-            _iou = 0.45;
-          });
-          _showSnack('✅ Defaults loaded — tap Save to apply');
-        }
-      }
-    } catch (_) {
-      // Fallback to hardcoded defaults if Pi unreachable
-      if (mounted) {
-        setState(() {
-          _alertConfig = {
-            'stationary_alert_minutes': 30.0,
-            'fever_delta_threshold_c': 1.5,
-            'population_lethargy_ratio': 0.6,
-            'thi_heat_stress_threshold': 79.0,
-            'cooldown_minutes': 30,
-          };
-          _confidence = 0.25;
-          _iou = 0.45;
-        });
-        _showSnack('✅ Defaults loaded (offline fallback)');
-      }
-    }
-  }
-
-  Future<void> _saveAll() async {
-    setState(() => _saving = true);
-    await _saveLocal();
-    try {
-      final body = <String, dynamic>{};
-      if (_alertConfig.isNotEmpty) {
-        for (final key in ['stationary_alert_minutes', 'fever_delta_threshold_c',
-            'population_lethargy_ratio', 'thi_heat_stress_threshold', 'cooldown_minutes']) {
-          if (_alertConfig.containsKey(key)) body[key] = _alertConfig[key];
-        }
-      }
-      if (body.isNotEmpty) {
-        await http
-            .patch(
-              Uri.parse('$_baseUrl/api/alert_config'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode(body),
-            )
-            .timeout(const Duration(seconds: 5));
-      }
-      if (mounted) _showSnack('✅ Settings saved');
-    } catch (_) {
-      if (mounted) _showSnack('⚠ Local settings saved. Pi unreachable.');
-    }
-    if (mounted) setState(() => _saving = false);
+    setState(() {
+      _ipCtrl.text = '192.168.4.1';
+      _confidence = 0.25;
+      _iou = 0.45;
+    });
+    _showSnack('✅ Defaults loaded — tap Save to apply');
   }
 
   void _showSnack(String msg) {
@@ -218,6 +90,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final ws = context.watch<WebsocketService>();
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('Device Settings'),
@@ -229,7 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(width: 4),
           FilledButton.icon(
-            onPressed: _saving ? null : _saveAll,
+            onPressed: _saving ? null : _saveLocal,
             icon: _saving
                 ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
                 : const Icon(Icons.save, size: 18),
@@ -241,6 +115,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.md),
         children: [
+          // Connection Status Banner
+          if (ws.state == WsConnectionState.error || ws.state == WsConnectionState.disconnected)
+            _offlineBanner(ws.errorMessage ?? 'Disconnected'),
+
           _sectionHeader(Icons.wifi, 'Connection'),
           _card([
             _labeledField(
@@ -276,98 +154,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               onChanged: (v) => setState(() => _iou = double.parse(v.toStringAsFixed(2))),
             ),
           ]),
-          const SizedBox(height: AppSpacing.md),
-
-          _sectionHeader(Icons.notifications_active, 'Alert Thresholds (Pi)'),
-          _loadingConfig
-              ? const Center(child: Padding(padding: EdgeInsets.all(16), child: CircularProgressIndicator()))
-              : _alertConfig.isEmpty
-                  ? _offlineBanner()
-                  : _card([
-                      _numericTile(
-                        label: 'Stationary Alert (min)',
-                        key_: 'stationary_alert_minutes',
-                        hint: '30',
-                        tooltip: 'Minutes a pig must remain stationary before triggering a lethargy alert.',
-                      ),
-                      const Divider(height: 1),
-                      _numericTile(
-                        label: 'Fever Delta Threshold (°C)',
-                        key_: 'fever_delta_threshold_c',
-                        hint: '1.5',
-                        isDecimal: true,
-                        tooltip: 'Thermal delta above ambient to flag as a fever symptom.',
-                      ),
-                      const Divider(height: 1),
-                      _numericTile(
-                        label: 'Herd Lethargy Ratio',
-                        key_: 'population_lethargy_ratio',
-                        hint: '0.6',
-                        isDecimal: true,
-                        tooltip: 'Fraction of herd that must be lethargic to trigger a population alert.',
-                      ),
-                      const Divider(height: 1),
-                      _numericTile(
-                        label: 'Heat Stress THI',
-                        key_: 'thi_heat_stress_threshold',
-                        hint: '79.0',
-                        isDecimal: true,
-                        tooltip: 'Temperature Humidity Index above which heat stress is flagged.',
-                      ),
-                      const Divider(height: 1),
-                      _numericTile(
-                        label: 'SMS Cooldown (min)',
-                        key_: 'cooldown_minutes',
-                        hint: '30',
-                        tooltip: 'Minimum minutes between repeated SMS alerts for the same alert type.',
-                      ),
-                    ]),
-          const SizedBox(height: AppSpacing.md),
-
-          _sectionHeader(Icons.contact_phone, 'SMS Alert Recipients (Pi)'),
-          _card([
-            Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: Row(children: [
-                Expanded(
-                  child: TextField(
-                    controller: _phoneCtrl,
-                    decoration: _inputDecor('+639XXXXXXXXX'),
-                    keyboardType: TextInputType.phone,
-                    inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[+\d]'))],
-                  ),
-                ),
-                const SizedBox(width: AppSpacing.sm),
-                FilledButton(
-                  onPressed: _addRecipient,
-                  child: const Text('Add'),
-                ),
-              ]),
-            ),
-            const Divider(height: 1),
-            if (_loadingRecipients)
-              const Padding(padding: EdgeInsets.all(16), child: Center(child: CircularProgressIndicator()))
-            else if (_recipients.isEmpty)
-              const Padding(
-                padding: EdgeInsets.all(AppSpacing.md),
-                child: Text('No recipients configured.', style: AppText.body),
-              )
-            else
-              ..._recipients.map((r) => ListTile(
-                leading: Icon(
-                  r['enabled'] == true ? Icons.phone_enabled : Icons.phone_disabled,
-                  color: r['enabled'] == true ? AppColors.primary : AppColors.textMuted,
-                  size: 20,
-                ),
-                title: Text(r['phone_number'] ?? '', style: AppText.body),
-                subtitle: Text(r['enabled'] == true ? 'Active' : 'Disabled', style: AppText.label),
-                trailing: IconButton(
-                  icon: const Icon(Icons.delete_outline, size: 18, color: AppColors.danger),
-                  onPressed: () => _deleteRecipient(r['id'] as int),
-                ),
-              )),
-          ]),
-          const SizedBox(height: AppSpacing.xl),
         ],
       ),
     );
@@ -417,54 +203,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
     ]),
   );
 
-  Widget _numericTile({
-    required String label,
-    required String key_,
-    required String hint,
-    bool isDecimal = false,
-    String? tooltip,
-  }) {
-    final rawVal = _alertConfig[key_];
-    final strVal = rawVal != null ? rawVal.toString() : '';
-    return ListTile(
-      title: Text(label, style: AppText.body),
-      subtitle: tooltip != null ? Text(tooltip, style: AppText.label) : null,
-      trailing: SizedBox(
-        width: 90,
-        child: TextField(
-          controller: TextEditingController(text: strVal),
-          decoration: _inputDecor(hint).copyWith(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+  Widget _offlineBanner(String error) => Padding(
+    padding: const EdgeInsets.only(bottom: AppSpacing.md),
+    child: Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withOpacity(0.1),
+        border: Border.all(color: AppColors.danger.withOpacity(0.3)),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(children: [
+        const Icon(Icons.signal_wifi_off, color: AppColors.danger, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Connection Lost', style: AppText.body.copyWith(color: AppColors.danger, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 4),
+              Text(error, style: AppText.label.copyWith(color: AppColors.danger)),
+            ],
           ),
-          keyboardType: TextInputType.numberWithOptions(decimal: isDecimal),
-          inputFormatters: [
-            FilteringTextInputFormatter.allow(RegExp(isDecimal ? r'[\d.]' : r'\d')),
-          ],
-          textAlign: TextAlign.center,
-          onChanged: (v) {
-            final parsed = isDecimal ? double.tryParse(v) : int.tryParse(v);
-            if (parsed != null) {
-              setState(() => _alertConfig[key_] = parsed);
-            }
-          },
         ),
-      ),
-    );
-  }
-
-  Widget _offlineBanner() => Padding(
-    padding: const EdgeInsets.all(AppSpacing.md),
-    child: Row(children: [
-      const Icon(Icons.signal_wifi_off, color: AppColors.warning, size: 16),
-      const SizedBox(width: 8),
-      Expanded(
-        child: Text(
-          'Pi unreachable — connect to pig-farm Wi-Fi first.',
-          style: AppText.body.copyWith(color: AppColors.warning),
-        ),
-      ),
-      TextButton(onPressed: _loadPiData, child: const Text('Retry')),
-    ]),
+      ]),
+    ),
   );
 
   InputDecoration _inputDecor(String hint) => InputDecoration(
