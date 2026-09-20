@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../services/tflite_service.dart';
+import '../models/detection.dart';
 import '../core/constants.dart';
 
 class LiveFeedWidget extends StatelessWidget {
@@ -21,7 +21,7 @@ class LiveFeedWidget extends StatelessWidget {
         // Camera Feed
         Image.memory(
           imageBytes,
-          fit: BoxFit.cover,
+          fit: BoxFit.contain,
           gaplessPlayback: true,
         ),
         

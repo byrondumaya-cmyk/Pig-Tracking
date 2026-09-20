@@ -79,7 +79,6 @@ const Map<String, BehaviorMeta> kBehaviorMap = {
   'lying':              BehaviorMeta(label: 'Lying',             color: Color(0xFF58A6FF), icon: Icons.airline_seat_flat),
   'standing':           BehaviorMeta(label: 'Standing',          color: Color(0xFF3FB950), icon: Icons.accessibility_new),
   'walking':            BehaviorMeta(label: 'Walking',           color: Color(0xFF79C0FF), icon: Icons.directions_walk),
-  'sitting':            BehaviorMeta(label: 'Sitting',           color: Color(0xFFA5D6FF), icon: Icons.chair),
   'feeding':            BehaviorMeta(label: 'Feeding',           color: Color(0xFFE3B341), icon: Icons.restaurant),
   'drinking':           BehaviorMeta(label: 'Drinking',          color: Color(0xFF56D364), icon: Icons.water_drop),
   'social_interaction': BehaviorMeta(label: 'Social',            color: Color(0xFFD2A8FF), icon: Icons.groups),

@@ -24,9 +24,9 @@ inference:
   model_path: "models/best.onnx"
   model_name: "swine_behavior_v1"   # Human-readable model identifier
   model_version: "1.0.0"           # Increment this when swapping to a new model
-  confidence_threshold: 0.45        # Min confidence to accept a detection
+  confidence_threshold: 0.35        # Min confidence to accept a detection
   iou_threshold: 0.45               # NMS IoU threshold
-  input_size: 640                   # Model input size (must match exported ONNX model)
+  input_size: 320                   # Model input size (must match exported ONNX model)
   # Performance: process every Nth frame (1 = every frame)
   # Increase to 2 or 3 if FPS is too low on Pi
   frame_skip: 3
@@ -151,3 +151,8 @@ network:
     country_code: "PH"
     ip: "192.168.4.1"
     subnet: "192.168.4.0/24"
+
+# ----- Classes ----------------------------------------------
+classes:
+  - "lying"
+  - "standing"

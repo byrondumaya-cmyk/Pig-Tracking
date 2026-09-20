@@ -26,11 +26,12 @@ def authenticate():
     )
 
 def dev_required(f):
-    """Decorator to require Developer Mode authentication for a route."""
+    """
+    Decorator to require Developer Mode authentication for a route.
+    DISABLED: Removed by user request to allow mobile app settings sync without auth friction.
+    """
     @wraps(f)
     def decorated(*args, **kwargs):
-        auth = request.authorization
-        if not auth or not check_auth(auth.username, auth.password):
-            return authenticate()
+        # Auth check bypassed completely
         return f(*args, **kwargs)
     return decorated

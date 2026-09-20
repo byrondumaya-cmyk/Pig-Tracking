@@ -8,11 +8,13 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 class SensorData {
   final Uint8List imageBytes;
   final List<List<double>> thermalGrid;
+  final List<Map<String, dynamic>> detections;
   final DateTime receivedAt;
 
   const SensorData({
     required this.imageBytes,
     required this.thermalGrid,
+    required this.detections,
     required this.receivedAt,
   });
 }
@@ -103,10 +105,16 @@ class WebsocketService extends ChangeNotifier {
                   .toList())
               .toList()
           : <List<double>>[];
+          
+      final rawDets = decoded['detections'] as List?;
+      final detections = rawDets != null 
+          ? rawDets.cast<Map<String, dynamic>>()
+          : <Map<String, dynamic>>[];
 
       _latestData = SensorData(
         imageBytes: imageBytes,
         thermalGrid: thermalGrid,
+        detections: detections,
         receivedAt: DateTime.now(),
       );
       notifyListeners();

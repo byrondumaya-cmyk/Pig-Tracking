@@ -36,6 +36,7 @@ class SensorHubStreamer:
         self._server_task = None
         self._latest_frame: Optional[np.ndarray] = None
         self._latest_thermal: Optional[np.ndarray] = None
+        self._latest_detections: list = []
         self._running = False
 
     async def _handler(self, websocket):
@@ -82,7 +83,8 @@ class SensorHubStreamer:
                 payload = json.dumps({
                     "type": "sync_frame",
                     "image": jpg_as_text,
-                    "thermal_grid": self._latest_thermal.tolist() if self._latest_thermal is not None else []
+                    "thermal_grid": self._latest_thermal.tolist() if self._latest_thermal is not None else [],
+                    "detections": self._latest_detections
                 })
                 
                 # Broadcast to all connected phones
@@ -127,3 +129,8 @@ class SensorHubStreamer:
         """Thread-safe update called by the main camera loop."""
         self._latest_frame = frame
         self._latest_thermal = thermal_grid
+
+    def update_detections(self, detections: list):
+        """Thread-safe update called by the main inference loop."""
+        self._latest_detections = detections
+

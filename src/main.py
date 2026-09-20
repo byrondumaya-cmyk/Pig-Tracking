@@ -414,6 +414,16 @@ class SwineHealthMonitor:
             # Filter tracks using confirmation voting
             tracked_pigs = self.confirmation_filter.filter(tracked_pigs_raw, frame_count)
             track_time = time.perf_counter() - t0
+            
+            if getattr(self, 'ws_streamer', None):
+                self.ws_streamer.update_detections([
+                    {
+                        "track_id": pig.track_id,
+                        "behavior": pig.behavior,
+                        "bbox": pig.bbox.tolist() if hasattr(pig.bbox, "tolist") else pig.bbox,
+                        "confidence": float(pig.confidence)
+                    } for pig in tracked_pigs
+                ])
 
             # --- Pig Counting: Update occupancy count (current pigs in view) ---
             current_pig_count = self.pig_counter.update(tracked_pigs)

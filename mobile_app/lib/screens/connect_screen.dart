@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
-import '../core/theme.dart';
 
 /// Initial screen shown when no saved Pi IP exists.
 /// User enters the Pi IP, taps Connect → saved to SharedPreferences.
@@ -68,9 +67,9 @@ class _ConnectScreenState extends State<ConnectScreen> {
               Container(
                 width: 64, height: 64,
                 decoration: BoxDecoration(
-                  color: AppColors.primary.withOpacity(0.15),
+                  color: AppColors.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppColors.primary.withOpacity(0.3)),
+                  border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
                 ),
                 child: const Icon(
                   Icons.sensors, color: AppColors.primary, size: 32,

@@ -1,29 +1,8 @@
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
-import '../core/constants.dart';
-
-// ─── Detection Model ──────────────────────────────────────────────────────────
-
-class Detection {
-  final Rect bbox;
-  final String label;
-  final double confidence;
-  double? thermalZoneTemp;
-
-  Detection({
-    required this.bbox,
-    required this.label,
-    required this.confidence,
-    this.thermalZoneTemp,
-  });
-
-  @override
-  String toString() =>
-      'Detection(label: $label, conf: ${confidence.toStringAsFixed(2)})';
-}
+import '../models/detection.dart';
 
 // ─── Isolate payload ──────────────────────────────────────────────────────────
 
@@ -46,16 +25,21 @@ class TFLiteService {
   bool _loading = false;
 
   static const List<String> _labels = [
-    'lying', 'standing', 'walking', 'sitting',
+    'lying', 'standing', 'walking',
     'feeding', 'drinking', 'social_interaction', 'aggression',
   ];
 
-  // Lowered from 0.35 → 0.25 to account for real-world lighting variance
-  static const double _confThreshold = 0.25;
-  static const double _iouThreshold  = 0.45;
-  static const int    _inputSize     = 640;
+  // Settable thresholds (can be updated from settings at runtime)
+  double confThreshold = 0.25;
+  double iouThreshold  = 0.45;
+  static const int _inputSize     = 640;
 
   bool get isLoaded => _interpreter != null;
+
+  void updateThresholds({double? confidence, double? iou}) {
+    if (confidence != null) confThreshold = confidence;
+    if (iou != null) iouThreshold = iou;
+  }
 
   // ── Load ──────────────────────────────────────────────────────────────────
 
@@ -122,7 +106,7 @@ class TFLiteService {
         }
       }
 
-      if (maxScore >= _confThreshold && classId >= 0) {
+      if (maxScore >= confThreshold && classId >= 0) {
         // YOLOv8 bbox: center_x, center_y, width, height (pixel coords in input space)
         final cx = tensor[0][i];
         final cy = tensor[1][i];
@@ -185,11 +169,11 @@ class TFLiteService {
 
   // ── NMS helpers ───────────────────────────────────────────────────────────
 
-  static List<Detection> _nms(List<Detection> dets) {
+  List<Detection> _nms(List<Detection> dets) {
     dets.sort((a, b) => b.confidence.compareTo(a.confidence));
     final kept = <Detection>[];
     for (final det in dets) {
-      if (kept.every((k) => _iou(k.bbox, det.bbox) < _iouThreshold)) {
+      if (kept.every((k) => _iou(k.bbox, det.bbox) < iouThreshold)) {
         kept.add(det);
       }
     }

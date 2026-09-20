@@ -135,7 +135,7 @@ class HerdRiskEngine:
                 logger.warning(f"[HerdRiskEngine] Failed to load config from database, using defaults: {e}")
         
         self._repository = repository
-        self._stationary_behaviors = set(stationary_behaviors or {"lying", "sitting"})
+        self._stationary_behaviors = set(stationary_behaviors or {"lying"})
         self._alert_minutes = stationary_alert_minutes
         self._heat_stress_minutes = stationary_heat_stress_minutes
         self._fever_delta = fever_delta_threshold_c

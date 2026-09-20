@@ -5,8 +5,8 @@ import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
 import 'package:gal/gal.dart';
 import '../core/constants.dart';
+import '../models/detection.dart';
 import '../services/websocket_service.dart';
-import '../services/tflite_service.dart';
 import '../widgets/live_feed_widget.dart';
 import '../widgets/thermal_grid_widget.dart';
 import '../widgets/status_chip.dart';
@@ -34,9 +34,8 @@ class DashboardScreen extends StatefulWidget {
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
-  final TFLiteService _tflite = TFLiteService();
+  // Pi sends bounding boxes via WebSocket — no local inference needed.
   List<Detection> _currentDetections = [];
-  bool _isProcessingFrame = false;
   int _frameCount = 0;
   double _fps = 0.0;
   DateTime _fpsTimer = DateTime.now();
@@ -44,12 +43,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<PenAlert> _alerts = [];
   bool _hasUnresolved = false;
   Timer? _pollTimer;
-  final Set<int> _seenAlertIds = {}; // tracks known alert IDs to detect new ones
+  final Set<int> _seenAlertIds = {};
 
   @override
   void initState() {
     super.initState();
-    _tflite.loadModel();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<WebsocketService>().addListener(_onWsData);
     });
@@ -61,7 +59,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
   void dispose() {
     _pollTimer?.cancel();
     try { context.read<WebsocketService>().removeListener(_onWsData); } catch (_) {}
-    _tflite.dispose();
     super.dispose();
   }
 
@@ -77,19 +74,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _fpsTimer = now;
       if (mounted) setState(() => _fps = newFps);
     }
-    _runInference(data.imageBytes);
-  }
-
-  Future<void> _runInference(imageBytes) async {
-    if (_isProcessingFrame || !_tflite.isLoaded) return;
-    _isProcessingFrame = true;
-    try {
-      final detections = await _tflite.runInference(imageBytes);
-      if (mounted) setState(() => _currentDetections = detections);
-    } catch (e) {
-      debugPrint('[Dashboard] Inference error: $e');
-    } finally {
-      _isProcessingFrame = false;
+    
+    // Map JSON detections from the Pi to the Detection class
+    if (mounted) {
+      setState(() {
+        _currentDetections = data.detections.map((d) {
+          final bbox = d['bbox'] as List;
+          return Detection(
+            label: d['behavior'] as String,
+            confidence: (d['confidence'] as num).toDouble(),
+            bbox: Rect.fromLTRB(
+              (bbox[0] as num).toDouble(),
+              (bbox[1] as num).toDouble(),
+              (bbox[2] as num).toDouble(),
+              (bbox[3] as num).toDouble(),
+            ),
+          );
+        }).toList();
+      });
     }
   }
 
@@ -137,8 +139,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final imageBytes = ws.latestData?.imageBytes;
     if (imageBytes == null || imageBytes.isEmpty) return;
     try {
-      final label = alertType.replaceAll('_', '-');
-      final ts = DateTime.now().millisecondsSinceEpoch;
       await Gal.putImageBytes(
         imageBytes,
         album: 'Pig Alerts',
@@ -174,7 +174,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           Center(child: StatusChip(state: ws.state)),
           IconButton(
             icon: const Icon(Icons.settings),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen())),
+            onPressed: () async {
+              await Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+            },
           ),
           const SizedBox(width: AppSpacing.sm),
         ],
@@ -193,7 +195,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         LiveFeedWidget(imageBytes: data.imageBytes, detections: _currentDetections),
         Positioned(top: 8, right: 8, child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(color: Colors.black.withOpacity(0.6), borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: Colors.black.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(6)),
           child: Text('${_fps.toStringAsFixed(1)} FPS',
             style: const TextStyle(color: Colors.greenAccent, fontSize: 11, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
         )),
@@ -249,7 +251,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ))),
             const SizedBox(height: AppSpacing.sm),
             Expanded(flex: 2, child: Card(
-              color: _hasUnresolved ? Colors.orange.shade900.withOpacity(0.25) : null,
+              color: _hasUnresolved ? Colors.orange.shade900.withValues(alpha: 0.25) : null,
               child: Padding(padding: const EdgeInsets.all(AppSpacing.sm), child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -298,7 +300,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Widget _buildOfflineState(WebsocketService ws) {
     return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      Icon(Icons.wifi_off, size: 48, color: AppColors.textMuted.withOpacity(0.5)),
+      Icon(Icons.wifi_off, size: 48, color: AppColors.textMuted.withValues(alpha: 0.5)),
       const SizedBox(height: AppSpacing.md),
       const Text('Connection Lost', style: AppText.h2),
       const SizedBox(height: AppSpacing.sm),

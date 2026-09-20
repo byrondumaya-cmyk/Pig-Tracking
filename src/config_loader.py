@@ -87,7 +87,7 @@ class GSMConfig:
 @dataclass
 class HybridHealthConfig:
     """Hybrid Risk Engine thresholds (replaces old weighted-score model)."""
-    stationary_behaviors: list = field(default_factory=lambda: ["lying", "sitting"])
+    stationary_behaviors: list = field(default_factory=lambda: ["lying"])
     stationary_alert_minutes: float = 15.0
     stationary_heat_stress_minutes: float = 30.0
     fever_delta_threshold_c: float = 2.0
