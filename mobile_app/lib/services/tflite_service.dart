@@ -29,10 +29,15 @@ class Detection {
 
 // ─── Isolate payload ──────────────────────────────────────────────────────────
 
-class _InferenceRequest {
+class _PreprocessRequest {
   final Uint8List jpegBytes;
-  final int interpreterAddress;
-  const _InferenceRequest(this.jpegBytes, this.interpreterAddress);
+  final int inputSize;
+  final bool isQuantized;
+  const _PreprocessRequest({
+    required this.jpegBytes,
+    required this.inputSize,
+    required this.isQuantized,
+  });
 }
 
 // ─── Service ──────────────────────────────────────────────────────────────────
@@ -76,45 +81,42 @@ class TFLiteService {
 
   // ── Inference ─────────────────────────────────────────────────────────────
 
-  /// Runs inference directly on the UI thread.
-  /// (Takes ~80-150ms on mobile, which is acceptable for live UI)
-  List<Detection> runInference(Uint8List jpegBytes) {
+  /// Runs inference. Image preprocessing is offloaded to a background isolate 
+  /// to keep the UI smooth and prevent OOM crashes.
+  Future<List<Detection>> runInference(Uint8List jpegBytes) async {
     if (_interpreter == null) return [];
 
-    // 1. Decode + resize
-    final image = img.decodeJpg(jpegBytes);
-    if (image == null) return [];
+    final inputTensor = _interpreter!.getInputTensor(0);
+    final isQuantized = inputTensor.type == TfLiteType.uint8 || inputTensor.type == TfLiteType.int8;
 
-    final resized = img.copyResize(image, width: _inputSize, height: _inputSize);
+    // 1. Offload heavy image decoding, resizing, and buffer flattening to a background isolate
+    final flatInput = await compute(_preprocessImage, _PreprocessRequest(
+      jpegBytes: jpegBytes,
+      inputSize: _inputSize,
+      isQuantized: isQuantized,
+    ));
 
-    // 2. Normalize to [0, 1] Float32
-    final input = List.generate(
-      1,
-      (_) => List.generate(
-        _inputSize,
-        (y) => List.generate(
-          _inputSize,
-          (x) {
-            final pixel = resized.getPixel(x, y);
-            return [
-              pixel.r / 255.0,
-              pixel.g / 255.0,
-              pixel.b / 255.0,
-            ];
-          },
-        ),
-      ),
-    );
+    if (flatInput == null) return [];
 
-    // 3. Run — output shape [1, 12, 8400]
+    // 2. Prepare output tensor [1, 12, 8400]
+    // YOLOv8 output is typically float32 even if quantized, but we use nested lists 
+    // because tflite_flutter's run() handles the mapping to the output array gracefully.
     final output = List.generate(1, (_) =>
       List.generate(12, (_) => List<double>.filled(8400, 0.0)));
 
-    // Use the instance interpreter directly (DO NOT use fromAddress in the same isolate, 
-    // it will cause a double-free native crash when GC runs)
-    _interpreter!.run(input, output);
+    // 3. Run inference on the main isolate (very fast, ~20ms, since prep is done)
+    // We pass the flat buffer; tflite_flutter will reshape it to [1, 640, 640, 3] internally.
+    try {
+      // For input, tflite_flutter accepts flat lists and reshapes them automatically
+      // if the total element count matches.
+      final reshapedInput = flatInput.reshape([1, _inputSize, _inputSize, 3]);
+      _interpreter!.run(reshapedInput, output);
+    } catch (e) {
+      debugPrint('[TFLite] run error: $e');
+      return [];
+    }
     
-    // Parse YOLOv8 output
+    // 4. Parse YOLOv8 output
     final List<Detection> dets = [];
     final tensor = output[0]; // [12, 8400] -> 4 bbox coords + 8 class scores
     
@@ -122,7 +124,6 @@ class TFLiteService {
       double maxClassScore = 0.0;
       int classId = -1;
       
-      // Classes are at indices 4 to 11
       for (int c = 4; c < 12; c++) {
         final score = tensor[c][i];
         if (score > maxClassScore) {
@@ -132,7 +133,6 @@ class TFLiteService {
       }
       
       if (maxClassScore >= _confThreshold) {
-        // YOLOv8 bbox format: center_x, center_y, width, height (normalized)
         final cx = tensor[0][i];
         final cy = tensor[1][i];
         final w = tensor[2][i];
@@ -152,6 +152,42 @@ class TFLiteService {
     }
 
     return _nms(dets);
+  }
+
+  // ── Worker (runs inside Isolate) ──────────────────────────────────────────
+
+  static dynamic _preprocessImage(_PreprocessRequest req) {
+    final image = img.decodeJpg(req.jpegBytes);
+    if (image == null) return null;
+
+    final resized = img.copyResize(image, width: req.inputSize, height: req.inputSize);
+    final numPixels = req.inputSize * req.inputSize;
+
+    if (req.isQuantized) {
+      final buffer = Uint8List(numPixels * 3);
+      int offset = 0;
+      for (int y = 0; y < req.inputSize; y++) {
+        for (int x = 0; x < req.inputSize; x++) {
+          final pixel = resized.getPixel(x, y);
+          buffer[offset++] = pixel.r.toInt();
+          buffer[offset++] = pixel.g.toInt();
+          buffer[offset++] = pixel.b.toInt();
+        }
+      }
+      return buffer;
+    } else {
+      final buffer = Float32List(numPixels * 3);
+      int offset = 0;
+      for (int y = 0; y < req.inputSize; y++) {
+        for (int x = 0; x < req.inputSize; x++) {
+          final pixel = resized.getPixel(x, y);
+          buffer[offset++] = pixel.r / 255.0;
+          buffer[offset++] = pixel.g / 255.0;
+          buffer[offset++] = pixel.b / 255.0;
+        }
+      }
+      return buffer;
+    }
   }
 
 
