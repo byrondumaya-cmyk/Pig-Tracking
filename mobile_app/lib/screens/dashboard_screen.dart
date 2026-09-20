@@ -141,7 +141,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       final ts = DateTime.now().millisecondsSinceEpoch;
       await Gal.putImageBytes(
         imageBytes,
-        name: 'pig-alert-$label-$ts',
+        album: 'Pig Alerts',
       );
       debugPrint('[Screenshot] Saved alert snapshot');
       if (mounted) {
