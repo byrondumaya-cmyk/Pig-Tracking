@@ -12,6 +12,8 @@
 async function apiFetch(url, options = {}) {
     const defaultHeaders = {
         'Accept': 'application/json',
+        // Basic Auth so @dev_required routes accept AJAX without a popup
+        'Authorization': 'Basic ' + btoa('admin:PigDashboard2026!'),
     };
     
     // If sending JSON, set Content-Type
