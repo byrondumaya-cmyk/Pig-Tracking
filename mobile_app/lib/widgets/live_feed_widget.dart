@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import '../services/tflite_service.dart';
+import '../models/detection.dart';
 import '../core/constants.dart';
 
 class LiveFeedWidget extends StatelessWidget {

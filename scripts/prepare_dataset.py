@@ -1,84 +1,85 @@
-"""
-scripts/prepare_dataset.py
-Phase 2 — Dataset Preparation (Symlink / Copy)
-
-PURPOSE:
-    Copies or symlinks the Roboflow-downloaded datasets from the Windows
-    Downloads folder into the project's datasets/ directory so that
-    merge_datasets.py can find them in the expected locations.
-
-    Source datasets (from Downloads):
-      - pig-behavior.v1i.yolov8    → datasets/dataset_1_pig-behavior-wlvku
-      - Pig Behavior.v1i.yolov8   → datasets/dataset_2_pig-behavior-8xbgn
-
-USAGE:
-    python scripts/prepare_dataset.py
-    python scripts/prepare_dataset.py --copy    # actual copy instead of symlink
-"""
-
-from __future__ import annotations
-
+import os
 import argparse
-import shutil
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-DOWNLOADS = Path.home() / "Downloads"
-
-DATASET_MAP = {
-    "dataset_1_pig-behavior-wlvku": DOWNLOADS / "pig-behavior.v1i.yolov8",
-    "dataset_2_pig-behavior-8xbgn": DOWNLOADS / "Pig Behavior.v1i.yolov8",
+# The classes we want to KEEP and their new IDs
+TARGET_CLASSES = {
+    "lying": 0,
+    "sitting": 1,
+    "standing": 2
 }
 
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Prepare datasets for merge_datasets.py")
-    parser.add_argument("--copy", action="store_true", help="Copy files instead of symlinking")
-    args = parser.parse_args()
-
-    print("\n============================================================")
-    print(" SWINE HEALTH MONITOR - Dataset Preparation")
-    print("============================================================\n")
-
-    datasets_dir = ROOT / "datasets"
-    datasets_dir.mkdir(exist_ok=True)
-
-    all_ok = True
-    for dest_name, src_path in DATASET_MAP.items():
-        dest_path = datasets_dir / dest_name
+def remap_dataset(dataset_dir: str, class_map_file: str):
+    """
+    Reads a YOLO dataset directory, finds all .txt annotation files,
+    and remaps the class IDs according to the old_to_new mapping.
+    Drops any bounding boxes that do not match the target classes.
+    """
+    # 1. Read the old classes.txt
+    old_classes = []
+    class_file_path = Path(dataset_dir) / class_map_file
+    if not class_file_path.exists():
+        print(f"Error: Could not find {class_map_file} in {dataset_dir}")
+        return
         
-        if not src_path.exists():
-            print(f"  ERROR: Source not found: {src_path}")
-            print(f"         Please download the dataset from Roboflow first.")
-            all_ok = False
+    with open(class_file_path, "r") as f:
+        old_classes = [line.strip().lower() for line in f.readlines()]
+        
+    print(f"Original dataset classes: {old_classes}")
+    
+    # 2. Build mapping from Old ID -> New ID
+    # e.g. If old classes are ["standing", "aggression", "lying"],
+    # standing (0) -> 2, aggression (1) -> DROP, lying (2) -> 0
+    id_mapping = {}
+    for old_id, class_name in enumerate(old_classes):
+        if class_name in TARGET_CLASSES:
+            id_mapping[old_id] = TARGET_CLASSES[class_name]
+            
+    print(f"Mapping rules: {id_mapping}")
+    
+    # 3. Process all .txt files in the dataset
+    processed_files = 0
+    boxes_kept = 0
+    boxes_dropped = 0
+    
+    for txt_file in Path(dataset_dir).rglob("*.txt"):
+        if txt_file.name == class_map_file:
             continue
-
-        if dest_path.exists() or dest_path.is_symlink():
-            print(f"  SKIP: {dest_name} already exists at {dest_path}")
-            continue
-
-        if args.copy:
-            print(f"  Copying {src_path.name} -> datasets/{dest_name} ...")
-            shutil.copytree(src_path, dest_path)
-            print(f"    Done.")
-        else:
-            # Try symlink first (fast, space-efficient)
-            try:
-                dest_path.symlink_to(src_path)
-                print(f"  Linked: {src_path.name} -> datasets/{dest_name}")
-            except (OSError, NotImplementedError) as e:
-                print(f"  Symlink failed ({e}), falling back to copy...")
-                shutil.copytree(src_path, dest_path)
-                print(f"  Copied: {src_path.name} -> datasets/{dest_name}")
-
-    if all_ok:
-        print("\nDataset preparation complete! You can now run:")
-        print("    python scripts/merge_datasets.py")
-    else:
-        print("\nFix missing dataset paths above before proceeding.")
-        sys.exit(1)
-
-
+            
+        with open(txt_file, "r") as f:
+            lines = f.readlines()
+            
+        new_lines = []
+        for line in lines:
+            parts = line.strip().split()
+            if not parts:
+                continue
+                
+            old_id = int(parts[0])
+            if old_id in id_mapping:
+                new_id = id_mapping[old_id]
+                new_lines.append(f"{new_id} {' '.join(parts[1:])}\n")
+                boxes_kept += 1
+            else:
+                boxes_dropped += 1
+                
+        # Write back the filtered lines
+        with open(txt_file, "w") as f:
+            f.writelines(new_lines)
+            
+        processed_files += 1
+        
+    # 4. Overwrite classes.txt with the new classes
+    with open(class_file_path, "w") as f:
+        f.write("lying\nsitting\nstanding\n")
+        
+    print(f"Done! Processed {processed_files} files.")
+    print(f"Kept {boxes_kept} bounding boxes. Dropped {boxes_dropped} complex behaviors.")
+    
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Remap YOLO dataset classes to lying, sitting, standing")
+    parser.add_argument("--dir", type=str, required=True, help="Path to the dataset root folder")
+    parser.add_argument("--classes", type=str, default="classes.txt", help="Name of the classes file")
+    args = parser.parse_args()
+    
+    remap_dataset(args.dir, args.classes)

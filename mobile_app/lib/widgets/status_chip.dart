@@ -18,31 +18,26 @@ class StatusChip extends StatelessWidget {
         color = AppColors.primary;
         text = 'Online';
         icon = Icons.wifi;
-        break;
       case WsConnectionState.connecting:
         color = AppColors.warning;
         text = 'Connecting';
         icon = Icons.wifi_find;
-        break;
       case WsConnectionState.error:
         color = AppColors.danger;
         text = 'Error';
         icon = Icons.error_outline;
-        break;
       case WsConnectionState.disconnected:
-      default:
         color = AppColors.textMuted;
         text = 'Offline';
         icon = Icons.wifi_off;
-        break;
     }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

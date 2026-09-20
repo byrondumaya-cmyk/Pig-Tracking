@@ -1,29 +1,8 @@
-import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:tflite_flutter/tflite_flutter.dart';
 import 'package:image/image.dart' as img;
-import '../core/constants.dart';
-
-// ─── Detection Model ──────────────────────────────────────────────────────────
-
-class Detection {
-  final Rect bbox;
-  final String label;
-  final double confidence;
-  double? thermalZoneTemp;
-
-  Detection({
-    required this.bbox,
-    required this.label,
-    required this.confidence,
-    this.thermalZoneTemp,
-  });
-
-  @override
-  String toString() =>
-      'Detection(label: $label, conf: ${confidence.toStringAsFixed(2)})';
-}
+import '../models/detection.dart';
 
 // ─── Isolate payload ──────────────────────────────────────────────────────────
 

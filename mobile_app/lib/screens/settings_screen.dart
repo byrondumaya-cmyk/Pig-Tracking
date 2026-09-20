@@ -41,8 +41,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // ── Local prefs ─────────────────────────────────────────────────────────
 
   Future<void> _loadLocal() async {
-    final prefs = await SharedPreferences.getInstance();
     final ws = context.read<WebsocketService>();
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     setState(() {
       _ipCtrl.text = prefs.getString(_kIpKey) ?? ws.savedIp ?? '192.168.4.1';
       _confidence = prefs.getDouble(_kConfKey) ?? 0.25;
@@ -208,8 +209,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
     child: Container(
       padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
-        color: AppColors.danger.withOpacity(0.1),
-        border: Border.all(color: AppColors.danger.withOpacity(0.3)),
+        color: AppColors.danger.withValues(alpha: 0.1),
+        border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(children: [
