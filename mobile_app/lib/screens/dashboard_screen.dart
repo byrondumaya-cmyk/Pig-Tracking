@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:http/http.dart' as http;
+import 'package:image_gallery_saver/image_gallery_saver.dart';
 import '../core/constants.dart';
 import '../services/websocket_service.dart';
 import '../services/tflite_service.dart';
@@ -43,6 +44,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<PenAlert> _alerts = [];
   bool _hasUnresolved = false;
   Timer? _pollTimer;
+  final Set<int> _seenAlertIds = {}; // tracks known alert IDs to detect new ones
 
   @override
   void initState() {
@@ -115,9 +117,44 @@ class _DashboardScreenState extends State<DashboardScreen> {
           alertType: (a['alert_type'] ?? 'unknown') as String,
           resolved: a['resolved'] == true,
         )).toList();
+
+        // Detect new unresolved alerts and snapshot the current frame
+        for (final alert in list) {
+          if (!alert.resolved && !_seenAlertIds.contains(alert.id)) {
+            _captureAlertScreenshot(alert.alertType);
+          }
+        }
+        // Track all seen IDs so we don't double-snapshot
+        _seenAlertIds.addAll(list.map((a) => a.id));
+
         if (mounted) setState(() { _alerts = list; _hasUnresolved = j['has_unresolved'] == true; });
       }
     } catch (_) {}
+  }
+
+  Future<void> _captureAlertScreenshot(String alertType) async {
+    final ws = context.read<WebsocketService>();
+    final imageBytes = ws.latestData?.imageBytes;
+    if (imageBytes == null || imageBytes.isEmpty) return;
+    try {
+      final label = alertType.replaceAll('_', '-');
+      final ts = DateTime.now().millisecondsSinceEpoch;
+      final result = await ImageGallerySaver.saveImage(
+        imageBytes,
+        quality: 90,
+        name: 'pig-alert-$label-$ts',
+      );
+      debugPrint('[Screenshot] Saved alert snapshot: $result');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('📸 Alert snapshot saved: ${alertType.replaceAll("_", " ")}'),
+          backgroundColor: Colors.orange.shade800,
+          duration: const Duration(seconds: 4),
+        ));
+      }
+    } catch (e) {
+      debugPrint('[Screenshot] Failed to save: $e');
+    }
   }
 
   @override
