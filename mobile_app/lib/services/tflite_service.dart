@@ -74,26 +74,15 @@ class TFLiteService {
     }
   }
 
-  // ── Inference (Isolate-backed) ────────────────────────────────────────────
+  // ── Inference ─────────────────────────────────────────────────────────────
 
-  /// Runs inference off the UI thread via [compute].
-  /// Returns parsed [Detection] list after NMS.
-  Future<List<Detection>> runInferenceAsync(Uint8List jpegBytes) async {
-    if (_interpreter == null) return [];
-    return compute(_inferenceWorker, _InferenceRequest(jpegBytes, _interpreter!.address));
-  }
-
-  /// Sync fallback for direct calls (no UI-thread isolation).
+  /// Runs inference directly on the UI thread.
+  /// (Takes ~80-150ms on mobile, which is acceptable for live UI)
   List<Detection> runInference(Uint8List jpegBytes) {
     if (_interpreter == null) return [];
-    return _inferenceWorker(_InferenceRequest(jpegBytes, _interpreter!.address));
-  }
 
-  // ── Worker (runs inside Isolate) ──────────────────────────────────────────
-
-  static List<Detection> _inferenceWorker(_InferenceRequest request) {
     // 1. Decode + resize
-    final image = img.decodeJpg(request.jpegBytes);
+    final image = img.decodeJpg(jpegBytes);
     if (image == null) return [];
 
     final resized = img.copyResize(image, width: _inputSize, height: _inputSize);
@@ -121,9 +110,9 @@ class TFLiteService {
     final output = List.generate(1, (_) =>
       List.generate(12, (_) => List<double>.filled(8400, 0.0)));
 
-    // Reconstruct interpreter from address
-    final interpreter = Interpreter.fromAddress(request.interpreterAddress);
-    interpreter.run(input, output);
+    // Use the instance interpreter directly (DO NOT use fromAddress in the same isolate, 
+    // it will cause a double-free native crash when GC runs)
+    _interpreter!.run(input, output);
     
     // Parse YOLOv8 output
     final List<Detection> dets = [];
@@ -143,7 +132,7 @@ class TFLiteService {
       }
       
       if (maxClassScore >= _confThreshold) {
-        // YOLOv8 bbox format: center_x, center_y, width, height (normalized to input size)
+        // YOLOv8 bbox format: center_x, center_y, width, height (normalized)
         final cx = tensor[0][i];
         final cy = tensor[1][i];
         final w = tensor[2][i];
@@ -164,6 +153,7 @@ class TFLiteService {
 
     return _nms(dets);
   }
+
 
   // ── NMS helpers ───────────────────────────────────────────────────────────
 
