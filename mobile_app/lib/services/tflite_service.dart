@@ -32,11 +32,9 @@ class Detection {
 class _PreprocessRequest {
   final Uint8List jpegBytes;
   final int inputSize;
-  final bool isQuantized;
   const _PreprocessRequest({
     required this.jpegBytes,
     required this.inputSize,
-    required this.isQuantized,
   });
 }
 
@@ -86,29 +84,20 @@ class TFLiteService {
   Future<List<Detection>> runInference(Uint8List jpegBytes) async {
     if (_interpreter == null) return [];
 
-    final inputTensor = _interpreter!.getInputTensor(0);
-    final isQuantized = inputTensor.type == TfLiteType.uint8 || inputTensor.type == TfLiteType.int8;
-
     // 1. Offload heavy image decoding, resizing, and buffer flattening to a background isolate
     final flatInput = await compute(_preprocessImage, _PreprocessRequest(
       jpegBytes: jpegBytes,
       inputSize: _inputSize,
-      isQuantized: isQuantized,
     ));
 
     if (flatInput == null) return [];
 
     // 2. Prepare output tensor [1, 12, 8400]
-    // YOLOv8 output is typically float32 even if quantized, but we use nested lists 
-    // because tflite_flutter's run() handles the mapping to the output array gracefully.
     final output = List.generate(1, (_) =>
       List.generate(12, (_) => List<double>.filled(8400, 0.0)));
 
-    // 3. Run inference on the main isolate (very fast, ~20ms, since prep is done)
-    // We pass the flat buffer; tflite_flutter will reshape it to [1, 640, 640, 3] internally.
+    // 3. Run inference on the main isolate
     try {
-      // For input, tflite_flutter accepts flat lists and reshapes them automatically
-      // if the total element count matches.
       final reshapedInput = flatInput.reshape([1, _inputSize, _inputSize, 3]);
       _interpreter!.run(reshapedInput, output);
     } catch (e) {
@@ -163,31 +152,17 @@ class TFLiteService {
     final resized = img.copyResize(image, width: req.inputSize, height: req.inputSize);
     final numPixels = req.inputSize * req.inputSize;
 
-    if (req.isQuantized) {
-      final buffer = Uint8List(numPixels * 3);
-      int offset = 0;
-      for (int y = 0; y < req.inputSize; y++) {
-        for (int x = 0; x < req.inputSize; x++) {
-          final pixel = resized.getPixel(x, y);
-          buffer[offset++] = pixel.r.toInt();
-          buffer[offset++] = pixel.g.toInt();
-          buffer[offset++] = pixel.b.toInt();
-        }
+    final buffer = Float32List(numPixels * 3);
+    int offset = 0;
+    for (int y = 0; y < req.inputSize; y++) {
+      for (int x = 0; x < req.inputSize; x++) {
+        final pixel = resized.getPixel(x, y);
+        buffer[offset++] = pixel.r / 255.0;
+        buffer[offset++] = pixel.g / 255.0;
+        buffer[offset++] = pixel.b / 255.0;
       }
-      return buffer;
-    } else {
-      final buffer = Float32List(numPixels * 3);
-      int offset = 0;
-      for (int y = 0; y < req.inputSize; y++) {
-        for (int x = 0; x < req.inputSize; x++) {
-          final pixel = resized.getPixel(x, y);
-          buffer[offset++] = pixel.r / 255.0;
-          buffer[offset++] = pixel.g / 255.0;
-          buffer[offset++] = pixel.b / 255.0;
-        }
-      }
-      return buffer;
     }
+    return buffer;
   }
 
 

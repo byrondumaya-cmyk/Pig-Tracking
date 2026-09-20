@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -82,7 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_isProcessingFrame || !_tflite.isLoaded) return;
     _isProcessingFrame = true;
     try {
-      final detections = _tflite.runInference(imageBytes);
+      final detections = await _tflite.runInference(imageBytes);
       if (mounted) setState(() => _currentDetections = detections);
     } catch (e) {
       debugPrint('[Dashboard] Inference error: $e');
