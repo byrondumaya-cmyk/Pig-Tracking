@@ -82,41 +82,83 @@ def settings():
                 config = yaml.safe_load(f)
 
             data = request.json
+            
+            validated_gsm = {}
+            validated_health = {}
+            validated_storage = {}
+            validated_inference = {}
+            validated_thermal = {}
+            errors = {}
+
             if 'gsm' in data:
-                if 'phone_numbers' in data['gsm']:
-                    config['gsm']['phone_numbers'] = data['gsm']['phone_numbers']
-                if 'cooldown_minutes' in data['gsm']:
-                    config['gsm']['cooldown_minutes'] = int(data['gsm']['cooldown_minutes'])
+                gsm_data = data['gsm']
+                if 'phone_numbers' in gsm_data:
+                    validated_gsm['phone_numbers'] = gsm_data['phone_numbers']
+                if 'cooldown_minutes' in gsm_data:
+                    try:
+                        validated_gsm['cooldown_minutes'] = int(gsm_data['cooldown_minutes'])
+                    except (ValueError, TypeError):
+                        errors['gsm.cooldown_minutes'] = "Must be an integer"
+            
             if 'health' in data:
                 h = data['health']
                 for key in ('stationary_alert_minutes', 'fever_delta_threshold_c', 'population_lethargy_ratio'):
                     if key in h:
-                        config['health'][key] = float(h[key])
+                        try:
+                            validated_health[key] = float(h[key])
+                        except (ValueError, TypeError):
+                            errors[f'health.{key}'] = "Must be a number"
+            
             if 'storage' in data:
                 s = data['storage']
-                if 'detections_retention_days' in s:
-                    config.setdefault('storage', {})['detections_retention_days'] = int(s['detections_retention_days'])
-                if 'ambient_retention_days' in s:
-                    config.setdefault('storage', {})['ambient_retention_days'] = int(s['ambient_retention_days'])
-                if 'snapshots_retention_days' in s:
-                    config.setdefault('storage', {})['snapshots_retention_days'] = int(s['snapshots_retention_days'])
-                    
+                for key in ('detections_retention_days', 'ambient_retention_days', 'snapshots_retention_days'):
+                    if key in s:
+                        try:
+                            validated_storage[key] = int(s[key])
+                        except (ValueError, TypeError):
+                            errors[f'storage.{key}'] = "Must be an integer"
+            
             if 'inference' in data:
                 inf = data['inference']
                 if 'confidence_threshold' in inf:
-                    config.setdefault('inference', {})['confidence_threshold'] = float(inf['confidence_threshold'])
+                    try:
+                        validated_inference['confidence_threshold'] = float(inf['confidence_threshold'])
+                    except (ValueError, TypeError):
+                        errors['inference.confidence_threshold'] = "Must be a number"
                 if 'confirmation_votes' in inf:
-                    config.setdefault('inference', {})['confirmation_votes'] = int(inf['confirmation_votes'])
+                    try:
+                        validated_inference['confirmation_votes'] = int(inf['confirmation_votes'])
+                    except (ValueError, TypeError):
+                        errors['inference.confirmation_votes'] = "Must be an integer"
             
             if 'thermal' in data:
                 thm = data['thermal']
                 if 'display_rotation_deg' in thm:
-                    config.setdefault('thermal', {})['display_rotation_deg'] = float(thm['display_rotation_deg'])
+                    try:
+                        validated_thermal['display_rotation_deg'] = float(thm['display_rotation_deg'])
+                    except (ValueError, TypeError):
+                        errors['thermal.display_rotation_deg'] = "Must be a number"
+
+            if errors:
+                return jsonify({"status": "error", "message": "Validation failed", "errors": errors}), 400
+
+            # Apply atomic mutations to config now that we know all inputs are valid
+            if validated_gsm:
+                config.setdefault('gsm', {}).update(validated_gsm)
+            if validated_health:
+                config.setdefault('health', {}).update(validated_health)
+            if validated_storage:
+                config.setdefault('storage', {}).update(validated_storage)
+            if validated_inference:
+                config.setdefault('inference', {}).update(validated_inference)
+            if validated_thermal:
+                config.setdefault('thermal', {}).update(validated_thermal)
 
             with open(CONFIG_PATH, "w") as f:
                 yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
 
-            return jsonify({"status": "success", "message": "Settings saved. Changes take effect on next restart."})
+            # Document ID-6: Note that some settings (like inference thresholds) require restart to take effect
+            return jsonify({"status": "success", "message": "Settings saved. Inference changes require restart."})
         except Exception as e:
             return jsonify({"status": "error", "message": str(e)}), 400
 
@@ -664,8 +706,16 @@ def sync_system_time():
     try:
         if source_type == "manual" and new_time_str:
             # Manual time setting (on Raspberry Pi with timedatectl)
+            try:
+                # Sanitize input: attempt to parse as ISO 8601
+                dt = datetime.fromisoformat(new_time_str.replace('Z', '+00:00'))
+                clean_time_str = dt.strftime('%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                repo.log_time_sync("manual", old_time, new_time_str, "failed", None, "Invalid time format")
+                return jsonify({"status": "error", "message": "Invalid time format. Expected ISO 8601."}), 400
+
             result = subprocess.run(
-                ["timedatectl", "set-time", new_time_str],
+                ["timedatectl", "set-time", clean_time_str],
                 capture_output=True,
                 timeout=10
             )

@@ -63,9 +63,17 @@ class SensorHubStreamer:
                 await asyncio.sleep(0.01)
                 continue
 
-            # Encode frame to JPEG
+            # Encode frame to JPEG off the asyncio event loop
             encode_param = [int(cv2.IMWRITE_JPEG_QUALITY), 60]  # Lower quality for speed
-            success, buffer = cv2.imencode('.jpg', self._latest_frame, encode_param)
+            frame_to_encode = self._latest_frame.copy()
+            loop = asyncio.get_running_loop()
+            success, buffer = await loop.run_in_executor(
+                None, 
+                cv2.imencode, 
+                '.jpg', 
+                frame_to_encode, 
+                encode_param
+            )
             
             if success:
                 jpg_as_text = base64.b64encode(buffer).decode('utf-8')

@@ -218,6 +218,34 @@ class SwineHealthMonitor:
         Path(h.snapshot_dir).mkdir(parents=True, exist_ok=True)
         logger.info("All subsystems initialized.")
 
+    def _start_thermal_reader(self) -> None:
+        """
+        Background thread: reads thermal grid at configured refresh_hz.
+        Completely decoupled from the camera frame relay and inference loop.
+        """
+        if not self.cfg.thermal.enabled or not getattr(self, 'thermal_reader', None):
+            return
+
+        def _relay():
+            target_interval = 1.0 / max(self.cfg.thermal.refresh_hz, 1.0)
+            from src.dashboard.stream import ThermalBuffer
+            while self._running:
+                loop_start = time.time()
+                try:
+                    grid = self.thermal_reader.read()
+                    ThermalBuffer.update(grid)
+                except Exception as e:
+                    logger.warning("Thermal read error: %s", e)
+                
+                elapsed = time.time() - loop_start
+                sleep_for = target_interval - elapsed
+                if sleep_for > 0:
+                    time.sleep(sleep_for)
+
+        relay_thread = threading.Thread(target=_relay, name="thermal-reader", daemon=True)
+        relay_thread.start()
+        logger.info("Thermal reader thread started (target %.1f Hz).", self.cfg.thermal.refresh_hz)
+
     def _start_camera_relay(self, camera) -> None:
         """
         Background thread: reads raw frames from AsyncCamera at full speed
@@ -231,13 +259,14 @@ class SwineHealthMonitor:
                 loop_start = time.time()
                 frame = camera.read()
                 if frame is not None and getattr(self, 'ws_streamer', None):
-                    # Read thermal lazily at a lower rate (sensor is slow)
+                    # Read thermal lazily from the buffer
                     raw_thermal = None
-                    if self.cfg.thermal.enabled and self.thermal_reader:
-                        try:
-                            raw_thermal = self.thermal_reader.read()
-                        except Exception:
-                            pass
+                    if self.cfg.thermal.enabled and getattr(self, 'thermal_reader', None):
+                        from src.dashboard.stream import ThermalBuffer
+                        import numpy as np
+                        grid_list = ThermalBuffer.read()
+                        if grid_list is not None:
+                            raw_thermal = np.array(grid_list)
                     self.ws_streamer.update_sensor_data(frame.copy(), raw_thermal)
                 # Pace the relay loop to the target FPS
                 elapsed = time.time() - loop_start
@@ -295,6 +324,7 @@ class SwineHealthMonitor:
             )
             # Start the high-FPS camera relay thread BEFORE the inference loop
             self._start_camera_relay(camera)
+            self._start_thermal_reader()
         else:
             # Park here — the dashboard thread is already running; just keep the
             # service alive until the operator addresses the camera issue.
@@ -398,15 +428,14 @@ class SwineHealthMonitor:
 
             # --- Thermal mapping ---
             temperature_map: dict[int, float] = {}
-            thermal_grid = None
-            if self.cfg.thermal.enabled and self.thermal_reader:
-                thermal_grid = self.thermal_reader.read()
-                temperature_map = self.thermal_mapper(
-                    thermal_grid, tracked_pigs, frame.shape
-                )
-                # Push latest thermal grid to dashboard buffer
+            if self.cfg.thermal.enabled and getattr(self, 'thermal_reader', None):
                 from src.dashboard.stream import ThermalBuffer
-                ThermalBuffer.update(thermal_grid)
+                import numpy as np
+                grid_list = ThermalBuffer.read()
+                if grid_list is not None:
+                    temperature_map = self.thermal_mapper(
+                        np.array(grid_list), tracked_pigs, frame.shape
+                    )
 
             # --- Behavior analyzer: build detection dicts ---
             detection_dicts = [
