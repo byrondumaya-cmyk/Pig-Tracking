@@ -166,19 +166,21 @@ class TFLiteService {
       interpolation: img.Interpolation.linear,
     );
 
-    // Build [1][H][W][3] — the exact shape tflite_flutter expects
-    return [
-      List.generate(req.inputSize, (y) =>
-        List.generate(req.inputSize, (x) {
-          final pixel = resized.getPixel(x, y);
-          return [
-            pixel.r / 255.0,
-            pixel.g / 255.0,
-            pixel.b / 255.0,
-          ];
-        }),
-      ),
-    ];
+    // Build [1][3][H][W] — aligning with NCHW export layout
+    final rChannel = List.generate(req.inputSize, (_) => List.filled(req.inputSize, 0.0));
+    final gChannel = List.generate(req.inputSize, (_) => List.filled(req.inputSize, 0.0));
+    final bChannel = List.generate(req.inputSize, (_) => List.filled(req.inputSize, 0.0));
+
+    for (int y = 0; y < req.inputSize; y++) {
+      for (int x = 0; x < req.inputSize; x++) {
+        final pixel = resized.getPixel(x, y);
+        rChannel[y][x] = pixel.r / 255.0;
+        gChannel[y][x] = pixel.g / 255.0;
+        bChannel[y][x] = pixel.b / 255.0;
+      }
+    }
+
+    return [[rChannel, gChannel, bChannel]];
   }
 
   // ── NMS helpers ───────────────────────────────────────────────────────────
